@@ -1,7 +1,11 @@
+"use client";
+
 import { TeamCard } from "@/components/teams/team-card";
-import { teams } from "@/lib/mock-data";
+import { useTournamentStore } from "@/lib/app-store";
 
 export default function TeamsDirectoryPage() {
+  const { state } = useTournamentStore();
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6">
@@ -12,7 +16,7 @@ export default function TeamsDirectoryPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {teams.map((team) => (
+        {state.teams.map((team) => (
           <TeamCard key={team.id} team={team} />
         ))}
       </div>

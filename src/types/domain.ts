@@ -116,6 +116,20 @@ export interface Match {
   status: MatchStatus;
 }
 
+/**
+ * Snapshot completo del torneo activo: todo lo que necesita el store del
+ * cliente (`src/lib/app-store.tsx`) para renderizar la app y lo que se
+ * persiste en localStorage. `createTournamentState`/`resetTournamentState`
+ * (`src/lib/tournament-factory.ts`) devuelven/transforman este tipo.
+ */
+export interface TournamentState {
+  tournament: Tournament;
+  teams: Team[];
+  teamAvailability: TeamAvailability[];
+  stages: CompetitionStage[];
+  matchesByStage: Record<string, Match[]>;
+}
+
 export const STAGE_TYPE_LABEL: Record<StageType, string> = {
   APERTURA: "Apertura",
   CLAUSURA: "Clausura",

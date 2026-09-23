@@ -5,6 +5,7 @@ import type {
   Team,
   TeamAvailability,
   Tournament,
+  TournamentState,
 } from "@/types/domain";
 
 /**
@@ -161,3 +162,12 @@ export function getStageById(id: string) {
 export function getTeamById(id: string) {
   return teams.find((t) => t.id === id);
 }
+
+/** Snapshot inicial que usa el store del cliente (`src/lib/app-store.tsx`) la primera vez que se abre la app. */
+export const demoTournamentState: TournamentState = {
+  tournament,
+  teams,
+  teamAvailability,
+  stages,
+  matchesByStage,
+};

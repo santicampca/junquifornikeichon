@@ -1,26 +1,46 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { CalendarClock, Trophy } from "lucide-react";
 import { StageTabs } from "@/components/tournaments/stage-tabs";
 import { StandingsTable } from "@/components/standings/standings-table";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ResetTournamentButton } from "@/components/admin/reset-tournament-button";
 import { computeStandings, mergeStandings } from "@/lib/standings";
-import { getStageById, matchesByStage, stages, teams, tournament } from "@/lib/mock-data";
+import { useTournamentStore } from "@/lib/app-store";
 import type { Match } from "@/types/domain";
 
-export default async function TournamentPage(props: PageProps<"/torneos/[slug]">) {
-  const { slug } = await props.params;
-  const { fase } = await props.searchParams;
+export default function TournamentPage() {
+  const { slug } = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const fase = searchParams.get("fase");
+  const { state } = useTournamentStore();
+  const { tournament, teams, stages, matchesByStage } = state;
 
-  if (slug !== tournament.slug) notFound();
+  if (slug !== tournament.slug) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <EmptyState
+          icon={Trophy}
+          title="Ese torneo no existe (o ya no está activo)"
+          description="Puede que se haya reiniciado la app o que se haya creado un torneo nuevo."
+        />
+        <div className="mt-4 text-center">
+          <Link href={`/torneos/${tournament.slug}`} className="text-sm font-medium text-primary hover:underline">
+            Ir al torneo activo: {tournament.name}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const teamIds = teams.map((t) => t.id);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
 
   const activeStage =
-    stages.find((s) => s.id === fase) ??
-    stages.find((s) => s.type === "APERTURA") ??
-    stages[0];
+    stages.find((s) => s.id === fase) ?? stages.find((s) => s.type === "APERTURA") ?? stages[0];
 
   const isGeneral = activeStage.type === "GENERAL";
   const ownMatches: Match[] = matchesByStage[activeStage.id] ?? [];
@@ -29,7 +49,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
   const rows = isGeneral
     ? mergeStandings(
         (activeStage.aggregatesFrom ?? []).map((childId) => {
-          const child = getStageById(childId);
+          const child = stages.find((s) => s.id === childId);
           return computeStandings(teamIds, matchesByStage[childId] ?? [], child?.points);
         }),
       )
@@ -47,14 +67,17 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex items-center gap-3">
-        <span className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
-          <Trophy className="size-6" />
-        </span>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">{tournament.name}</h1>
-          <p className="text-sm text-muted">{activeStage.name}</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+            <Trophy className="size-6" />
+          </span>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">{tournament.name}</h1>
+            <p className="text-sm text-muted">{activeStage.name}</p>
+          </div>
         </div>
+        <ResetTournamentButton />
       </div>
 
       <div className="mb-6">
