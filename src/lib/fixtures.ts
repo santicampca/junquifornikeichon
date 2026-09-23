@@ -9,10 +9,11 @@ export interface GeneratedMatch {
 const BYE = "__BYE__";
 
 /**
- * Genera un fixture de todos-contra-todos usando el método del círculo.
- * Si `doubleRound` es true, agrega una segunda vuelta con localía invertida
- * (ida y vuelta). Con un número impar de equipos se agrega un "descanso"
- * (bye) por jornada.
+ * Genera un fixture de todos-contra-todos usando el método del círculo
+ * (tablas de Berger). Si `doubleRound` es true, agrega una segunda vuelta
+ * con localía invertida (ida y vuelta). Con un número impar de equipos se
+ * agrega un "descanso" (bye) por jornada. Garantiza que cada equipo juegue
+ * como máximo una vez por ronda (sin duplicados dentro de una misma vuelta).
  */
 export function generateRoundRobin(
   teamIds: string[],
@@ -55,12 +56,37 @@ export function generateRoundRobin(
   return [...firstLeg, ...secondLeg];
 }
 
+// ============================================================
+// Calendario: asignación de fecha/día a un fixture ya generado
+// ============================================================
+
+export interface WeeklySlot {
+  day: DayOfWeek;
+  /** Cuántos partidos entran ese día dentro de la jornada. */
+  matchesPerDay: number;
+}
+
 export interface ScheduledMatch extends GeneratedMatch {
   scheduledAt: Date;
   dayOfWeek: DayOfWeek;
 }
 
-const DAY_TO_INDEX: Record<DayOfWeek, number> = {
+export interface SchedulingConflict extends GeneratedMatch {
+  reason: string;
+}
+
+export interface SchedulingResult {
+  scheduled: ScheduledMatch[];
+  /**
+   * Partidos que no se pudieron ubicar respetando restricciones y cupos.
+   * En vez de violar una regla o pisar el cupo de otro día, quedan acá
+   * para que se resuelvan a mano (ej: ampliar un cupo, mover a otra
+   * jornada).
+   */
+  conflicts: SchedulingConflict[];
+}
+
+const DAY_INDEX: Record<DayOfWeek, number> = {
   SUNDAY: 0,
   MONDAY: 1,
   TUESDAY: 2,
@@ -70,82 +96,137 @@ const DAY_TO_INDEX: Record<DayOfWeek, number> = {
   SATURDAY: 6,
 };
 
-function nextDateForDay(from: Date, day: DayOfWeek): Date {
-  const target = DAY_TO_INDEX[day];
-  const date = new Date(from);
-  const diff = (target - date.getDay() + 7) % 7;
-  date.setDate(date.getDate() + diff);
-  return date;
+/** Días desde `anchorDay` hasta `day`, siempre en [0, 6]. */
+function offsetFromAnchor(anchorDay: DayOfWeek, day: DayOfWeek): number {
+  return (DAY_INDEX[day] - DAY_INDEX[anchorDay] + 7) % 7;
 }
 
 /**
- * Asigna fecha y día de la semana a cada partido de un fixture ya generado,
- * respetando los días candidatos de la jornada (ej: jueves, domingo, lunes)
- * y las restricciones de disponibilidad por equipo. Distribuye los partidos
- * de cada jornada entre los días candidatos de forma equilibrada; si ningún
- * día candidato es válido para ambos equipos, se asigna el primer día de la
- * lista como mejor esfuerzo (revisar manualmente ese caso).
+ * Arma el calendario real (fecha + día) para un fixture ya generado
+ * (`generateRoundRobin`), respetando:
  *
- * Nota: es un algoritmo goloso pensado para dar el primer resultado
- * razonable rápido, no un solver de restricciones exhaustivo.
+ *  - La plantilla semanal de la jornada: qué días se juega y cuántos
+ *    partidos entran por día (`weeklySlots`, en orden cronológico —
+ *    ej: jueves×1, viernes×1, sábado×2, domingo×1, lunes×1).
+ *  - Las restricciones de disponibilidad por equipo (`availability`):
+ *    lista blanca de días en los que un equipo puede jugar. Un equipo
+ *    sin entrada en `availability` puede jugar cualquier día de la
+ *    plantilla.
+ *
+ * Algoritmo (heurística de CSP — "minimum remaining values"):
+ *  1. Para cada partido de la jornada se calculan sus días válidos:
+ *     intersección de los días permitidos de ambos equipos con los
+ *     días de la plantilla semanal.
+ *  2. Los partidos se ordenan por cantidad de días válidos ascendente.
+ *     Así, los partidos "condicionados" (con equipos restringidos, y
+ *     por lo tanto pocas opciones) se colocan primero; los partidos
+ *     libres —sin restricción, con todos los días como opción— quedan
+ *     al final y rellenan los huecos que sobran. Resolver primero lo
+ *     más restringido es lo que evita que un partido libre le gane el
+ *     único día posible a un partido condicionado.
+ *  3. Cada partido se asigna al día válido con más cupo disponible en
+ *     ese momento, para repartir la carga entre los días de la
+ *     plantilla en vez de amontonar todo en el primero.
+ *  4. Si un partido se queda sin día válido con cupo, no se fuerza:
+ *     se reporta en `conflicts`.
  */
 export function scheduleMatchdays(
   matches: GeneratedMatch[],
   {
     seasonStart,
-    candidateDays,
+    weeklySlots,
     availability = [],
-    daysBetweenMatchdays = 7,
+    weeksBetweenMatchdays = 1,
   }: {
+    /** Debe caer en el mismo día de la semana que `weeklySlots[0].day`. */
     seasonStart: Date;
-    candidateDays: DayOfWeek[];
+    weeklySlots: WeeklySlot[];
     availability?: TeamAvailability[];
-    daysBetweenMatchdays?: number;
+    /** Separación entre el inicio de una ventana de jornada y la siguiente. */
+    weeksBetweenMatchdays?: number;
   },
-): ScheduledMatch[] {
+): SchedulingResult {
+  if (weeklySlots.length === 0) {
+    throw new Error("scheduleMatchdays: weeklySlots no puede estar vacío");
+  }
+
   const allowedByTeam = new Map<string, Set<DayOfWeek>>();
   for (const a of availability) {
-    if (a.allowedDays.length > 0) {
-      allowedByTeam.set(a.teamId, new Set(a.allowedDays));
-    }
+    if (a.allowedDays.length > 0) allowedByTeam.set(a.teamId, new Set(a.allowedDays));
   }
 
-  function isAllowed(teamId: string, day: DayOfWeek): boolean {
-    const allowed = allowedByTeam.get(teamId);
-    return !allowed || allowed.has(day);
-  }
+  const anchorDay = weeklySlots[0].day;
+  const windowLengthDays = 7 * weeksBetweenMatchdays;
 
-  const rounds = new Map<number, GeneratedMatch[]>();
+  const byRound = new Map<number, GeneratedMatch[]>();
   for (const match of matches) {
-    const bucket = rounds.get(match.round) ?? [];
+    const bucket = byRound.get(match.round) ?? [];
     bucket.push(match);
-    rounds.set(match.round, bucket);
+    byRound.set(match.round, bucket);
   }
 
-  const result: ScheduledMatch[] = [];
+  const scheduled: ScheduledMatch[] = [];
+  const conflicts: SchedulingConflict[] = [];
 
-  for (const [round, roundMatches] of [...rounds.entries()].sort((a, b) => a[0] - b[0])) {
-    const weekStart = new Date(seasonStart);
-    weekStart.setDate(weekStart.getDate() + (round - 1) * daysBetweenMatchdays);
+  for (const [round, roundMatches] of [...byRound.entries()].sort((a, b) => a[0] - b[0])) {
+    const windowStart = new Date(seasonStart);
+    windowStart.setDate(windowStart.getDate() + (round - 1) * windowLengthDays);
 
-    // Reparte los partidos de la jornada entre los días candidatos.
-    let dayCursor = 0;
-    for (const match of roundMatches) {
-      let chosenDay = candidateDays[dayCursor % candidateDays.length];
+    const remainingCapacity = new Map<DayOfWeek, number>(
+      weeklySlots.map((slot) => [slot.day, slot.matchesPerDay]),
+    );
 
-      const validDay = candidateDays.find(
-        (day) => isAllowed(match.homeTeamId, day) && isAllowed(match.awayTeamId, day),
-      );
-      if (validDay) chosenDay = validDay;
+    // Paso 1: calcular días válidos por partido (intersección de
+    // disponibilidad de ambos equipos con la plantilla semanal).
+    const withValidDays = roundMatches.map((match) => {
+      const homeDays = allowedByTeam.get(match.homeTeamId);
+      const awayDays = allowedByTeam.get(match.awayTeamId);
+      const validDays = weeklySlots
+        .map((slot) => slot.day)
+        .filter((day) => (!homeDays || homeDays.has(day)) && (!awayDays || awayDays.has(day)));
+      return { match, validDays };
+    });
 
-      result.push({
-        ...match,
-        dayOfWeek: chosenDay,
-        scheduledAt: nextDateForDay(weekStart, chosenDay),
-      });
-      dayCursor++;
+    // Paso 2: los más restringidos (menos días válidos) se resuelven primero.
+    withValidDays.sort((a, b) => a.validDays.length - b.validDays.length);
+
+    for (const { match, validDays } of withValidDays) {
+      if (validDays.length === 0) {
+        conflicts.push({
+          ...match,
+          reason:
+            "Los días permitidos de los equipos no se solapan con ningún día de la plantilla semanal.",
+        });
+        continue;
+      }
+
+      // Paso 3: entre los días válidos, el que tenga más cupo libre.
+      let bestDay: DayOfWeek | null = null;
+      let bestCapacity = -1;
+      for (const day of validDays) {
+        const capacity = remainingCapacity.get(day) ?? 0;
+        if (capacity > bestCapacity) {
+          bestCapacity = capacity;
+          bestDay = day;
+        }
+      }
+
+      if (!bestDay || bestCapacity <= 0) {
+        conflicts.push({
+          ...match,
+          reason: "No quedaba cupo disponible en ninguno de los días permitidos para este partido.",
+        });
+        continue;
+      }
+
+      remainingCapacity.set(bestDay, bestCapacity - 1);
+
+      const scheduledAt = new Date(windowStart);
+      scheduledAt.setDate(scheduledAt.getDate() + offsetFromAnchor(anchorDay, bestDay));
+
+      scheduled.push({ ...match, dayOfWeek: bestDay, scheduledAt });
     }
   }
 
-  return result;
+  return { scheduled, conflicts };
 }

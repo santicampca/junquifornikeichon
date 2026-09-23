@@ -1,4 +1,4 @@
-import { generateRoundRobin, scheduleMatchdays } from "@/lib/fixtures";
+import { generateRoundRobin, scheduleMatchdays, type WeeklySlot } from "@/lib/fixtures";
 import type {
   CompetitionStage,
   Match,
@@ -40,14 +40,26 @@ export const teams: Team[] = [
   { id: "team_tigres", tournamentId: tournament.id, name: "Los Tigres FC", shortName: "TIG", slug: "los-tigres-fc", managerName: "Carlos Ramírez", primaryColor: "#f59e0b" },
   { id: "team_atletico", tournamentId: tournament.id, name: "Atlético Barrio", shortName: "ATB", slug: "atletico-barrio", managerName: "Marcos Díaz", primaryColor: "#3b82f6" },
   { id: "team_real", tournamentId: tournament.id, name: "Real Amigos", shortName: "REA", slug: "real-amigos", managerName: "Diego Torres", primaryColor: "#ef4444" },
-  { id: "team_junco", tournamentId: tournament.id, name: "Deportivo Junco", shortName: "JUN", slug: "deportivo-junco", managerName: "Santiago Campos", primaryColor: "#22c55e" },
-  { id: "team_vecinos", tournamentId: tournament.id, name: "FC Vecinos", shortName: "VEC", slug: "fc-vecinos", managerName: "Andrés López", primaryColor: "#a855f7" },
+  { id: "team_alianza", tournamentId: tournament.id, name: "Alianza Lima", shortName: "ALI", slug: "alianza-lima", managerName: "Javier", primaryColor: "#22c55e" },
+  { id: "team_europollas", tournamentId: tournament.id, name: "UD Europollas", shortName: "EUR", slug: "ud-europollas", managerName: "Diego", primaryColor: "#a855f7" },
   { id: "team_unidos", tournamentId: tournament.id, name: "Unidos SC", shortName: "UNI", slug: "unidos-sc", managerName: "Pablo Herrera", primaryColor: "#06b6d4" },
 ];
 
+// Restricciones reales del torneo: cada equipo solo puede jugar los días
+// que declara acá. El generador de fixtures (`scheduleMatchdays`) las
+// respeta como restricción dura.
 export const teamAvailability: TeamAvailability[] = [
-  { teamId: "team_junco", tournamentId: tournament.id, allowedDays: ["THURSDAY", "SUNDAY"], notes: "Solo puede jugar jueves o domingo." },
-  { teamId: "team_vecinos", tournamentId: tournament.id, allowedDays: ["SUNDAY", "MONDAY"], notes: "No disponible los jueves." },
+  { teamId: "team_alianza", tournamentId: tournament.id, allowedDays: ["THURSDAY", "SUNDAY"], notes: "Solo puede jugar jueves o domingo." },
+  { teamId: "team_europollas", tournamentId: tournament.id, allowedDays: ["SUNDAY", "MONDAY"], notes: "Solo puede jugar domingo o lunes." },
+];
+
+// Plantilla semanal de cada jornada: de jueves a lunes, con cupos por día.
+const WEEKLY_SLOTS: WeeklySlot[] = [
+  { day: "THURSDAY", matchesPerDay: 1 },
+  { day: "FRIDAY", matchesPerDay: 1 },
+  { day: "SATURDAY", matchesPerDay: 2 },
+  { day: "SUNDAY", matchesPerDay: 1 },
+  { day: "MONDAY", matchesPerDay: 1 },
 ];
 
 export const stages: CompetitionStage[] = [
@@ -98,11 +110,17 @@ function buildStageMatches(
   seasonStart: Date,
 ): Match[] {
   const fixture = generateRoundRobin(teamIds, { doubleRound: true });
-  const scheduled = scheduleMatchdays(fixture, {
+  const { scheduled, conflicts } = scheduleMatchdays(fixture, {
     seasonStart,
-    candidateDays: ["THURSDAY", "SUNDAY", "MONDAY"],
+    weeklySlots: WEEKLY_SLOTS,
     availability: teamAvailability,
   });
+
+  if (conflicts.length > 0) {
+    // Con los datos de demo no debería pasar; si aparece, hay que revisar
+    // la plantilla semanal o las restricciones de disponibilidad.
+    console.warn(`[mock-data] ${stageId}: ${conflicts.length} partido(s) sin poder programar`, conflicts);
+  }
 
   return scheduled.map((m, i) => {
     const isPlayed = m.round <= playThroughRound;
