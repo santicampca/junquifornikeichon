@@ -37,12 +37,18 @@ export const tournament: Tournament = {
 };
 
 export const teams: Team[] = [
-  { id: "team_tigres", tournamentId: tournament.id, name: "Los Tigres FC", shortName: "TIG", slug: "los-tigres-fc", managerName: "Carlos Ramírez", primaryColor: "#f59e0b" },
-  { id: "team_atletico", tournamentId: tournament.id, name: "Atlético Barrio", shortName: "ATB", slug: "atletico-barrio", managerName: "Marcos Díaz", primaryColor: "#3b82f6" },
-  { id: "team_real", tournamentId: tournament.id, name: "Real Amigos", shortName: "REA", slug: "real-amigos", managerName: "Diego Torres", primaryColor: "#ef4444" },
-  { id: "team_alianza", tournamentId: tournament.id, name: "Alianza Lima", shortName: "ALI", slug: "alianza-lima", managerName: "Javier", primaryColor: "#22c55e" },
+  { id: "team_zenits", tournamentId: tournament.id, name: "Zenit's", shortName: "ZEN", slug: "zenits", managerName: "Santiago", primaryColor: "#f59e0b" },
+  { id: "team_snorlax", tournamentId: tournament.id, name: "Snorlax FC", shortName: "SNO", slug: "snorlax-fc", managerName: "Yenderson", primaryColor: "#3b82f6" },
+  { id: "team_tipetiripe", tournamentId: tournament.id, name: "C.F Tipetiripe", shortName: "TIP", slug: "cf-tipetiripe", managerName: "Isaac", primaryColor: "#ef4444" },
   { id: "team_europollas", tournamentId: tournament.id, name: "UD Europollas", shortName: "EUR", slug: "ud-europollas", managerName: "Diego", primaryColor: "#a855f7" },
-  { id: "team_unidos", tournamentId: tournament.id, name: "Unidos SC", shortName: "UNI", slug: "unidos-sc", managerName: "Pablo Herrera", primaryColor: "#06b6d4" },
+  { id: "team_conocolo", tournamentId: tournament.id, name: "Coño colo juniors", shortName: "CCJ", slug: "cono-colo-juniors", managerName: "Yojhan", primaryColor: "#ec4899" },
+  { id: "team_lacota", tournamentId: tournament.id, name: "UD La cota 1000", shortName: "UDL", slug: "ud-la-cota-1000", managerName: "Miguel", primaryColor: "#06b6d4" },
+  { id: "team_respeta", tournamentId: tournament.id, name: "Respeta la justicia pape", shortName: "RJP", slug: "respeta-la-justicia-pape", managerName: "Argenis", primaryColor: "#eab308" },
+  { id: "team_vehement", tournamentId: tournament.id, name: "Vehement", shortName: "VEH", slug: "vehement", managerName: "Nicko", primaryColor: "#14b8a6" },
+  { id: "team_teparto", tournamentId: tournament.id, name: "Te parto el Culo Efe c", shortName: "TPC", slug: "te-parto-el-culo-efe-c", managerName: "Angel", primaryColor: "#f97316" },
+  { id: "team_alvos", tournamentId: tournament.id, name: "©aªlVos Fc", shortName: "ALV", slug: "alvos-fc", managerName: "Luis", primaryColor: "#8b5cf6" },
+  { id: "team_alianza", tournamentId: tournament.id, name: "Alianza lima", shortName: "ALI", slug: "alianza-lima", managerName: "Javier", primaryColor: "#22c55e" },
+  { id: "team_ak47", tournamentId: tournament.id, name: "ak memeten la 47", shortName: "AK4", slug: "ak-memeten-la-47", managerName: "Henry", primaryColor: "#84cc16" },
 ];
 
 // Restricciones reales del torneo: cada equipo solo puede jugar los días
@@ -141,8 +147,8 @@ function buildStageMatches(
 }
 
 export const matchesByStage: Record<string, Match[]> = {
-  stage_apertura: buildStageMatches("stage_apertura", 6, new Date("2026-03-05")), // jueves
-  stage_clausura: buildStageMatches("stage_clausura", 0, new Date("2026-08-06")), // jueves, tras el receso
+  stage_apertura: buildStageMatches("stage_apertura", 8, new Date("2026-03-05")), // jueves
+  stage_clausura: buildStageMatches("stage_clausura", 0, new Date("2026-09-10")), // jueves, tras el receso (22 jornadas de por medio)
   stage_supercopa: [],
 };
 // La Tabla General no tiene partidos propios: agrega Apertura + Clausura.
