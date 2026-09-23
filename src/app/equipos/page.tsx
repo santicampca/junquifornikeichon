@@ -1,10 +1,10 @@
-"use client";
-
 import { TeamCard } from "@/components/teams/team-card";
-import { useTournamentStore } from "@/lib/app-store";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getActiveTournamentState } from "@/lib/data";
+import { Users } from "lucide-react";
 
-export default function TeamsDirectoryPage() {
-  const { state } = useTournamentStore();
+export default async function TeamsDirectoryPage() {
+  const state = await getActiveTournamentState();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -15,11 +15,15 @@ export default function TeamsDirectoryPage() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {state.teams.map((team) => (
-          <TeamCard key={team.id} team={team} />
-        ))}
-      </div>
+      {!state || state.teams.length === 0 ? (
+        <EmptyState icon={Users} title="Todavía no hay equipos cargados" />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {state.teams.map((team) => (
+            <TeamCard key={team.id} team={team} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,111 +1,64 @@
-import { PrismaClient, StageType, StageFormat, StageStatus, DayOfWeek } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../src/lib/prisma";
+import { createTournamentState } from "../src/lib/tournament-factory";
+import { persistTournamentState } from "../src/lib/persist-tournament";
+import type { WeeklySlot } from "../src/lib/fixtures";
+import type { DayOfWeek } from "../src/types/domain";
 
 /**
- * Seed de ejemplo: una liga de amigos con 6 equipos, fase Apertura (en
- * curso), Clausura (programada), Tabla General (agrega ambas) y Supercopa
- * (aún sin definir). Pensado como punto de partida para probar el esquema
- * contra una base de datos real; los datos de demo que ve la UI sin base de
- * datos viven en src/lib/mock-data.ts.
+ * Seed real del torneo: los 12 equipos oficiales, con las restricciones de
+ * disponibilidad conocidas (Alianza lima solo jueves/domingo, UD Europollas
+ * solo domingo/lunes) y la plantilla semanal jueves-a-lunes.
+ *
+ * Arma todo en memoria con `createTournamentState` (el mismo motor que usa
+ * el asistente "Nuevo torneo" de la UI) y lo persiste con
+ * `persistTournamentState` (la misma función que usa la Server Action de
+ * creación de torneos).
  */
+
+const WEEKLY_SLOTS: WeeklySlot[] = [
+  { day: "THURSDAY", matchesPerDay: 1 },
+  { day: "FRIDAY", matchesPerDay: 1 },
+  { day: "SATURDAY", matchesPerDay: 2 },
+  { day: "SUNDAY", matchesPerDay: 1 },
+  { day: "MONDAY", matchesPerDay: 1 },
+];
+
+const TEAMS: { name: string; managerName: string; primaryColor: string; allowedDays?: DayOfWeek[] }[] = [
+  { name: "Zenit's", managerName: "Santiago", primaryColor: "#f59e0b" },
+  { name: "Snorlax FC", managerName: "Yenderson", primaryColor: "#3b82f6" },
+  { name: "C.F Tipetiripe", managerName: "Isaac", primaryColor: "#ef4444" },
+  { name: "UD Europollas", managerName: "Diego", primaryColor: "#a855f7", allowedDays: ["SUNDAY", "MONDAY"] },
+  { name: "Coño colo juniors", managerName: "Yojhan", primaryColor: "#ec4899" },
+  { name: "UD La cota 1000", managerName: "Miguel", primaryColor: "#06b6d4" },
+  { name: "Respeta la justicia pape", managerName: "Argenis", primaryColor: "#eab308" },
+  { name: "Vehement", managerName: "Nicko", primaryColor: "#14b8a6" },
+  { name: "Te parto el Culo Efe c", managerName: "Angel", primaryColor: "#f97316" },
+  { name: "©aªlVos Fc", managerName: "Luis", primaryColor: "#8b5cf6" },
+  { name: "Alianza lima", managerName: "Javier", primaryColor: "#22c55e", allowedDays: ["THURSDAY", "SUNDAY"] },
+  { name: "ak memeten la 47", managerName: "Henry", primaryColor: "#84cc16" },
+];
+
 async function main() {
-  const tournament = await prisma.tournament.create({
-    data: {
-      name: "Liga de Amigos JMC",
-      slug: "liga-de-amigos",
-      description: "Torneo amateur entre amigos, con fases Apertura, Clausura y Supercopa.",
-    },
+  const { state, conflicts } = createTournamentState({
+    name: "Liga de Amigos JMC",
+    description: "Torneo amateur entre amigos, con fases Apertura, Clausura y Supercopa.",
+    teams: TEAMS,
+    doubleRound: true,
+    weeklySlots: WEEKLY_SLOTS,
+    seasonStart: "2026-03-05", // jueves
+    includeSupercopa: true,
   });
 
-  const season = await prisma.season.create({
-    data: {
-      tournamentId: tournament.id,
-      name: "Temporada 2026",
-      year: 2026,
-      isCurrent: true,
-    },
-  });
+  if (conflicts.length > 0) {
+    console.warn(`Aviso: ${conflicts.length} partido(s) no se pudieron programar automáticamente:`, conflicts);
+  }
 
-  const teamsData = [
-    { name: "Los Tigres FC", shortName: "TIG", slug: "los-tigres-fc", managerName: "Carlos Ramírez", primaryColor: "#f59e0b" },
-    { name: "Atlético Barrio", shortName: "ATB", slug: "atletico-barrio", managerName: "Marcos Díaz", primaryColor: "#3b82f6" },
-    { name: "Real Amigos", shortName: "REA", slug: "real-amigos", managerName: "Diego Torres", primaryColor: "#ef4444" },
-    { name: "Deportivo Junco", shortName: "JUN", slug: "deportivo-junco", managerName: "Santiago Campos", primaryColor: "#22c55e" },
-    { name: "FC Vecinos", shortName: "VEC", slug: "fc-vecinos", managerName: "Andrés López", primaryColor: "#a855f7" },
-    { name: "Unidos SC", shortName: "UNI", slug: "unidos-sc", managerName: "Pablo Herrera", primaryColor: "#06b6d4" },
-  ];
+  const { tournamentSlug } = await persistTournamentState(state, { isActive: true });
 
-  const teams = await Promise.all(
-    teamsData.map((data) => prisma.team.create({ data: { ...data, tournamentId: tournament.id } })),
+  const totalMatches = Object.values(state.matchesByStage).reduce((sum, ms) => sum + ms.length, 0);
+  console.log(
+    `Seed completo: "${state.tournament.name}" (/torneos/${tournamentSlug}) con ${state.teams.length} equipos, ${state.stages.length} fases y ${totalMatches} partidos.`,
   );
-
-  const junco = teams.find((t) => t.slug === "deportivo-junco")!;
-  const vecinos = teams.find((t) => t.slug === "fc-vecinos")!;
-
-  await prisma.teamAvailability.createMany({
-    data: [
-      {
-        teamId: junco.id,
-        tournamentId: tournament.id,
-        allowedDays: [DayOfWeek.THURSDAY, DayOfWeek.SUNDAY],
-        notes: "Solo puede jugar jueves o domingo.",
-      },
-      {
-        teamId: vecinos.id,
-        tournamentId: tournament.id,
-        allowedDays: [DayOfWeek.SUNDAY, DayOfWeek.MONDAY],
-        notes: "No disponible los jueves.",
-      },
-    ],
-  });
-
-  const apertura = await prisma.competitionStage.create({
-    data: {
-      seasonId: season.id,
-      name: "Torneo Apertura 2026",
-      type: StageType.APERTURA,
-      format: StageFormat.ROUND_ROBIN_DOUBLE,
-      status: StageStatus.IN_PROGRESS,
-      participants: { create: teams.map((t) => ({ teamId: t.id })) },
-    },
-  });
-
-  const clausura = await prisma.competitionStage.create({
-    data: {
-      seasonId: season.id,
-      name: "Torneo Clausura 2026",
-      type: StageType.CLAUSURA,
-      format: StageFormat.ROUND_ROBIN_DOUBLE,
-      status: StageStatus.SCHEDULED,
-      participants: { create: teams.map((t) => ({ teamId: t.id })) },
-    },
-  });
-
-  await prisma.competitionStage.create({
-    data: {
-      seasonId: season.id,
-      name: "Tabla General 2026",
-      type: StageType.GENERAL,
-      format: StageFormat.ROUND_ROBIN_DOUBLE,
-      status: StageStatus.IN_PROGRESS,
-      aggregatesFrom: {
-        create: [{ childStageId: apertura.id }, { childStageId: clausura.id }],
-      },
-    },
-  });
-
-  await prisma.competitionStage.create({
-    data: {
-      seasonId: season.id,
-      name: "Supercopa 2026",
-      type: StageType.SUPERCOPA,
-      format: StageFormat.DIRECT_MATCH,
-      status: StageStatus.DRAFT,
-    },
-  });
-
-  console.log(`Seed completo: torneo "${tournament.name}" con ${teams.length} equipos.`);
 }
 
 main()

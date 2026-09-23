@@ -212,24 +212,3 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
     conflicts: [...apertura.conflicts, ...clausura.conflicts],
   };
 }
-
-/**
- * Vuelve un torneo a su estado inicial: borra todos los marcadores (vuelven
- * a null) y el estado de cada partido pasa a SCHEDULED, pero el calendario
- * (fechas, rivales, jornadas) y los equipos quedan exactamente igual.
- */
-export function resetTournamentState(state: TournamentState): TournamentState {
-  const matchesByStage = Object.fromEntries(
-    Object.entries(state.matchesByStage).map(([stageId, matches]) => [
-      stageId,
-      matches.map((m) => ({ ...m, homeScore: null, awayScore: null, status: "SCHEDULED" as const })),
-    ]),
-  );
-
-  const stages = state.stages.map((stage) => ({
-    ...stage,
-    status: stage.status === "DRAFT" ? ("DRAFT" as const) : ("SCHEDULED" as const),
-  }));
-
-  return { ...state, stages, matchesByStage };
-}

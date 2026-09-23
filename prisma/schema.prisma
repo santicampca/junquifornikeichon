@@ -1,13 +1,16 @@
 // Prisma schema — Plataforma de Torneos de Fútbol Amateur
-// Motor recomendado: PostgreSQL (compatible con Supabase)
+// Motor: MongoDB Atlas (free tier). Mongo no tiene FKs a nivel de motor,
+// así que Prisma las emula con relationMode = "prisma" (valida/cascadea
+// desde el cliente en vez de con constraints del lado del server).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "mongodb"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 // ============================================================
@@ -17,7 +20,7 @@ datasource db {
 /// Un Torneo es el contenedor de más alto nivel (ej: "Liga de Amigos JMC").
 /// Puede tener múltiples Temporadas a lo largo del tiempo.
 model Tournament {
-  id          String   @id @default(cuid())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   slug        String   @unique
   logoUrl     String?
@@ -29,14 +32,12 @@ model Tournament {
   seasons          Season[]
   teams            Team[]
   teamAvailability TeamAvailability[]
-
-  @@index([slug])
 }
 
 /// Una Temporada agrupa las fases de competición de un mismo ciclo (ej: "2026").
 model Season {
-  id           String   @id @default(cuid())
-  tournamentId String
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String     @db.ObjectId
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   name      String // ej: "Temporada 2026"
@@ -78,9 +79,9 @@ enum StageStatus {
 /// partidos propios: agrega los puntos de las fases listadas en
 /// `aggregatesFrom` (ver StageAggregation).
 model CompetitionStage {
-  id       String  @id @default(cuid())
-  seasonId String
-  season   Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  seasonId String @db.ObjectId
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   name   String // ej: "Torneo Apertura 2026"
   type   StageType
@@ -112,9 +113,9 @@ model CompetitionStage {
 
 /// Tabla puente que define qué fases alimentan a una fase GENERAL/acumulada.
 model StageAggregation {
-  id            String @id @default(cuid())
-  parentStageId String // la fase GENERAL
-  childStageId  String // la fase que aporta puntos (Apertura, Clausura, ...)
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  parentStageId String @db.ObjectId // la fase GENERAL
+  childStageId  String @db.ObjectId // la fase que aporta puntos (Apertura, Clausura, ...)
   weight        Float  @default(1) // por si a futuro se pondera distinto
 
   parentStage CompetitionStage @relation("ParentStage", fields: [parentStageId], references: [id], onDelete: Cascade)
@@ -126,11 +127,11 @@ model StageAggregation {
 /// Inscripción de un equipo en una fase concreta (permite que no todos los
 /// equipos del torneo jueguen todas las fases, ej: solo campeones en Supercopa).
 model StageParticipant {
-  id      String @id @default(cuid())
-  stageId String
+  id      String           @id @default(auto()) @map("_id") @db.ObjectId
+  stageId String           @db.ObjectId
   stage   CompetitionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  teamId  String
-  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId  String           @db.ObjectId
+  team    Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   group String? // para fases de grupos (ej: "Grupo A")
   seed  Int? // cabeza de serie / orden de siembra
@@ -146,19 +147,19 @@ model StageParticipant {
 /// Equipo registrado en la plataforma. Pertenece a un Torneo (directorio
 /// general) y puede participar en múltiples fases/temporadas de ese torneo.
 model Team {
-  id           String  @id @default(cuid())
-  tournamentId String
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String     @db.ObjectId
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
-  name        String
-  shortName   String?
-  slug        String
-  logoUrl     String?
-  managerName String // "propietario/mánager"
+  name         String
+  shortName    String?
+  slug         String
+  logoUrl      String?
+  managerName  String // "propietario/mánager"
   primaryColor String? // hex, para acentos de UI
-  foundedYear Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  foundedYear  Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   players           Player[]
   stageParticipants StageParticipant[]
@@ -172,14 +173,14 @@ model Team {
 
 /// Jugador de la plantilla de un equipo (módulo opcional / futuro).
 model Player {
-  id        String   @id @default(cuid())
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  teamId    String    @db.ObjectId
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   name      String
   number    Int?
   position  String? // ej: "Portero", "Defensa", "Mediocampista", "Delantero"
   birthDate DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([teamId])
 }
@@ -198,10 +199,10 @@ enum DayOfWeek {
 /// qué días de la semana puede jugar (ej: solo jueves, domingo y lunes).
 /// El generador de fixtures debe respetar esto al asignar partidos.
 model TeamAvailability {
-  id           String    @id @default(cuid())
-  teamId       String
-  team         Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  tournamentId String
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  teamId       String     @db.ObjectId
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  tournamentId String     @db.ObjectId
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   allowedDays DayOfWeek[] // días permitidos; vacío = sin restricción
@@ -217,8 +218,8 @@ model TeamAvailability {
 /// Una Jornada agrupa los partidos de una misma fecha/ronda dentro de una fase.
 /// Puede abarcar un rango de días (ej: de jueves a lunes).
 model Matchday {
-  id      String @id @default(cuid())
-  stageId String
+  id      String           @id @default(auto()) @map("_id") @db.ObjectId
+  stageId String           @db.ObjectId
   stage   CompetitionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
   number    Int // jornada 1, 2, 3...
@@ -242,16 +243,16 @@ enum MatchStatus {
 
 /// Un partido entre dos equipos dentro de una fase (y opcionalmente una jornada).
 model Match {
-  id      String @id @default(cuid())
-  stageId String
+  id      String           @id @default(auto()) @map("_id") @db.ObjectId
+  stageId String           @db.ObjectId
   stage   CompetitionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
-  matchdayId String?
+  matchdayId String?   @db.ObjectId
   matchday   Matchday? @relation(fields: [matchdayId], references: [id], onDelete: SetNull)
 
-  homeTeamId String
+  homeTeamId String @db.ObjectId
   homeTeam   Team   @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeamId String
+  awayTeamId String @db.ObjectId
   awayTeam   Team   @relation("AwayTeam", fields: [awayTeamId], references: [id])
 
   homeScore Int?

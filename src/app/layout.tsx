@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Navbar } from "@/components/layout/navbar";
 import { AppStoreProvider } from "@/lib/app-store";
+import { getActiveTournamentState } from "@/lib/data";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,7 +21,14 @@ export const metadata: Metadata = {
     "Plataforma para crear, programar y seguir torneos de fútbol amateur entre amigos.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// La app entera lee el torneo activo desde Mongo en cada request (admin
+// puede reiniciar/crear un torneo en cualquier momento), así que no tiene
+// sentido cachear/pre-renderizar nada de forma estática.
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const activeTournament = await getActiveTournamentState();
+
   return (
     <html
       lang="es"
@@ -28,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AppStoreProvider>
-          <Navbar />
+          <Navbar activeTournamentSlug={activeTournament?.tournament.slug} />
           <main className="flex-1">{children}</main>
         </AppStoreProvider>
       </body>

@@ -1,13 +1,8 @@
-"use client";
-
 import Link from "next/link";
 import { Trophy, Users } from "lucide-react";
-import { useTournamentStore } from "@/lib/app-store";
 import { AdminLogin } from "@/components/admin/admin-login";
 
-export function Navbar() {
-  const { state } = useTournamentStore();
-
+export function Navbar({ activeTournamentSlug }: { activeTournamentSlug?: string }) {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
@@ -20,7 +15,7 @@ export function Navbar() {
 
         <nav className="flex items-center gap-1 text-sm">
           <Link
-            href={`/torneos/${state.tournament.slug}`}
+            href={activeTournamentSlug ? `/torneos/${activeTournamentSlug}` : "/"}
             className="rounded-md px-3 py-1.5 font-medium text-muted-strong transition-colors hover:bg-surface-elevated hover:text-foreground"
           >
             Torneos

@@ -3,8 +3,9 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Sparkles, X } from "lucide-react";
-import { useTournamentStore } from "@/lib/app-store";
-import { DAY_LABEL, type DayOfWeek } from "@/types/domain";
+import { useAdmin } from "@/lib/app-store";
+import { createTournamentAction } from "@/lib/actions";
+import { DAY_LABEL, type DayOfWeek, type Team, type TeamAvailability } from "@/types/domain";
 import { cn, generateId } from "@/lib/utils";
 
 const ALL_DAYS: DayOfWeek[] = [
@@ -65,9 +66,20 @@ function defaultSeasonStart(): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function CreateTournamentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CreateTournamentDialog({
+  open,
+  onClose,
+  currentTeams,
+  currentTeamAvailability,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Equipos del torneo activo, para el botón "Usar plantilla actual". */
+  currentTeams: Team[];
+  currentTeamAvailability: TeamAvailability[];
+}) {
   const router = useRouter();
-  const { state, createTournament } = useTournamentStore();
+  const { adminName } = useAdmin();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -83,11 +95,11 @@ export function CreateTournamentDialog({ open, onClose }: { open: boolean; onClo
 
   function useCurrentAsTemplate() {
     setTeams(
-      state.teams.map((t) => ({
+      currentTeams.map((t) => ({
         id: generateId("row"),
         name: t.name,
         managerName: t.managerName,
-        allowedDays: state.teamAvailability.find((a) => a.teamId === t.id)?.allowedDays ?? [],
+        allowedDays: currentTeamAvailability.find((a) => a.teamId === t.id)?.allowedDays ?? [],
       })),
     );
   }
@@ -111,9 +123,14 @@ export function CreateTournamentDialog({ open, onClose }: { open: boolean; onClo
     );
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!adminName) {
+      setError("Iniciá sesión como admin antes de crear un torneo.");
+      return;
+    }
 
     const trimmed = teams.map((t) => ({ ...t, name: t.name.trim(), managerName: t.managerName.trim() }));
     if (!name.trim()) {
@@ -136,7 +153,7 @@ export function CreateTournamentDialog({ open, onClose }: { open: boolean; onClo
 
     setSubmitting(true);
     try {
-      const { tournamentSlug, conflicts } = createTournament({
+      const { tournamentSlug, conflicts } = await createTournamentAction(adminName, {
         name: name.trim(),
         description: description.trim() || undefined,
         doubleRound,

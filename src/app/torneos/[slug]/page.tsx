@@ -1,7 +1,4 @@
-"use client";
-
-import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { notFound } from "next/navigation";
 import { CalendarClock, Trophy } from "lucide-react";
 import { StageTabs } from "@/components/tournaments/stage-tabs";
 import { StandingsTable } from "@/components/standings/standings-table";
@@ -9,33 +6,17 @@ import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResetTournamentButton } from "@/components/admin/reset-tournament-button";
 import { computeStandings, mergeStandings } from "@/lib/standings";
-import { useTournamentStore } from "@/lib/app-store";
+import { getActiveTournamentState } from "@/lib/data";
 import type { Match } from "@/types/domain";
 
-export default function TournamentPage() {
-  const { slug } = useParams<{ slug: string }>();
-  const searchParams = useSearchParams();
-  const fase = searchParams.get("fase");
-  const { state } = useTournamentStore();
+export default async function TournamentPage(props: PageProps<"/torneos/[slug]">) {
+  const { slug } = await props.params;
+  const { fase } = await props.searchParams;
+
+  const state = await getActiveTournamentState();
+  if (!state || slug !== state.tournament.slug) notFound();
+
   const { tournament, teams, stages, matchesByStage } = state;
-
-  if (slug !== tournament.slug) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <EmptyState
-          icon={Trophy}
-          title="Ese torneo no existe (o ya no está activo)"
-          description="Puede que se haya reiniciado la app o que se haya creado un torneo nuevo."
-        />
-        <div className="mt-4 text-center">
-          <Link href={`/torneos/${tournament.slug}`} className="text-sm font-medium text-primary hover:underline">
-            Ir al torneo activo: {tournament.name}
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   const teamIds = teams.map((t) => t.id);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
 

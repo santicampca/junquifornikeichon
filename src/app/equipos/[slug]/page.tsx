@@ -1,35 +1,19 @@
-"use client";
-
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Users } from "lucide-react";
 import { TeamBadge } from "@/components/teams/team-badge";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeStandings } from "@/lib/standings";
-import { useTournamentStore } from "@/lib/app-store";
+import { getActiveTournamentState } from "@/lib/data";
 
-export default function TeamProfilePage() {
-  const { slug } = useParams<{ slug: string }>();
-  const { state } = useTournamentStore();
+export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]">) {
+  const { slug } = await props.params;
+  const state = await getActiveTournamentState();
+  const team = state?.teams.find((t) => t.slug === slug);
+  if (!state || !team) notFound();
+
   const { teams, stages, matchesByStage } = state;
-
-  const team = teams.find((t) => t.slug === slug);
-
-  if (!team) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <EmptyState icon={Users} title="Ese equipo no existe (o ya no está activo)" />
-        <div className="mt-4 text-center">
-          <Link href="/equipos" className="text-sm font-medium text-primary hover:underline">
-            Volver al directorio de equipos
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   const teamsById = new Map(teams.map((t) => [t.id, t]));
   const allMatches = Object.values(matchesByStage).flat();
   const teamMatches = allMatches.filter(

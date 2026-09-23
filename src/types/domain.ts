@@ -1,9 +1,8 @@
 /**
  * Tipos de dominio compartidos por la capa de UI y la lógica de negocio
  * (src/lib). Reflejan el modelo de datos de prisma/schema.prisma pero se
- * mantienen independientes del cliente de Prisma para poder usarse también
- * con datos de demostración (src/lib/mock-data.ts) sin una base de datos
- * conectada.
+ * mantienen independientes del cliente de Prisma: src/lib/data.ts convierte
+ * los resultados de Prisma a esta forma antes de pasarlos a los componentes.
  */
 
 export type StageType = "APERTURA" | "CLAUSURA" | "SUPERCOPA" | "GENERAL" | "OTRO";
@@ -117,10 +116,9 @@ export interface Match {
 }
 
 /**
- * Snapshot completo del torneo activo: todo lo que necesita el store del
- * cliente (`src/lib/app-store.tsx`) para renderizar la app y lo que se
- * persiste en localStorage. `createTournamentState`/`resetTournamentState`
- * (`src/lib/tournament-factory.ts`) devuelven/transforman este tipo.
+ * Snapshot completo de un torneo: lo que arma `createTournamentState`
+ * (`src/lib/tournament-factory.ts`) en memoria y lo que devuelve
+ * `getActiveTournamentState` (`src/lib/data.ts`) leyendo Mongo.
  */
 export interface TournamentState {
   tournament: Tournament;
