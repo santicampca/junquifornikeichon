@@ -1,0 +1,273 @@
+// Prisma schema — Plataforma de Torneos de Fútbol Amateur
+// Motor recomendado: PostgreSQL (compatible con Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// TORNEOS Y TEMPORADAS
+// ============================================================
+
+/// Un Torneo es el contenedor de más alto nivel (ej: "Liga de Amigos JMC").
+/// Puede tener múltiples Temporadas a lo largo del tiempo.
+model Tournament {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seasons          Season[]
+  teams            Team[]
+  teamAvailability TeamAvailability[]
+
+  @@index([slug])
+}
+
+/// Una Temporada agrupa las fases de competición de un mismo ciclo (ej: "2026").
+model Season {
+  id           String   @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  name      String // ej: "Temporada 2026"
+  year      Int
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  stages CompetitionStage[]
+
+  @@unique([tournamentId, year, name])
+  @@index([tournamentId])
+}
+
+enum StageType {
+  APERTURA
+  CLAUSURA
+  SUPERCOPA
+  GENERAL // Tabla acumulada/general (suma de otras fases)
+  OTRO
+}
+
+enum StageFormat {
+  ROUND_ROBIN_SINGLE // todos contra todos, una vuelta
+  ROUND_ROBIN_DOUBLE // todos contra todos, ida y vuelta
+  GROUP_STAGE
+  KNOCKOUT
+  DIRECT_MATCH // ida y vuelta / partido único entre 2 equipos (ej: Supercopa)
+}
+
+enum StageStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  FINISHED
+}
+
+/// Una Fase de Competición dentro de una temporada: Apertura, Clausura,
+/// Supercopa o la Tabla General (acumulada). El tipo GENERAL no genera
+/// partidos propios: agrega los puntos de las fases listadas en
+/// `aggregatesFrom` (ver StageAggregation).
+model CompetitionStage {
+  id       String  @id @default(cuid())
+  seasonId String
+  season   Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  name   String // ej: "Torneo Apertura 2026"
+  type   StageType
+  format StageFormat
+  status StageStatus @default(DRAFT)
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  // Reglas de puntuación configurables por fase
+  pointsForWin  Int @default(3)
+  pointsForDraw Int @default(1)
+  pointsForLoss Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants StageParticipant[]
+  matchdays    Matchday[]
+  matches      Match[]
+
+  // Auto-relación: una fase GENERAL agrega los puntos de otras fases
+  // (ej: General agrega Apertura + Clausura)
+  aggregatesFrom StageAggregation[] @relation("ParentStage")
+  aggregatedBy   StageAggregation[] @relation("ChildStage")
+
+  @@index([seasonId])
+}
+
+/// Tabla puente que define qué fases alimentan a una fase GENERAL/acumulada.
+model StageAggregation {
+  id            String @id @default(cuid())
+  parentStageId String // la fase GENERAL
+  childStageId  String // la fase que aporta puntos (Apertura, Clausura, ...)
+  weight        Float  @default(1) // por si a futuro se pondera distinto
+
+  parentStage CompetitionStage @relation("ParentStage", fields: [parentStageId], references: [id], onDelete: Cascade)
+  childStage  CompetitionStage @relation("ChildStage", fields: [childStageId], references: [id], onDelete: Cascade)
+
+  @@unique([parentStageId, childStageId])
+}
+
+/// Inscripción de un equipo en una fase concreta (permite que no todos los
+/// equipos del torneo jueguen todas las fases, ej: solo campeones en Supercopa).
+model StageParticipant {
+  id      String @id @default(cuid())
+  stageId String
+  stage   CompetitionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  teamId  String
+  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  group String? // para fases de grupos (ej: "Grupo A")
+  seed  Int? // cabeza de serie / orden de siembra
+
+  @@unique([stageId, teamId])
+  @@index([teamId])
+}
+
+// ============================================================
+// EQUIPOS Y JUGADORES
+// ============================================================
+
+/// Equipo registrado en la plataforma. Pertenece a un Torneo (directorio
+/// general) y puede participar en múltiples fases/temporadas de ese torneo.
+model Team {
+  id           String  @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  name        String
+  shortName   String?
+  slug        String
+  logoUrl     String?
+  managerName String // "propietario/mánager"
+  primaryColor String? // hex, para acentos de UI
+  foundedYear Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  players           Player[]
+  stageParticipants StageParticipant[]
+  homeMatches       Match[]            @relation("HomeTeam")
+  awayMatches       Match[]            @relation("AwayTeam")
+  availability      TeamAvailability[]
+
+  @@unique([tournamentId, slug])
+  @@index([tournamentId])
+}
+
+/// Jugador de la plantilla de un equipo (módulo opcional / futuro).
+model Player {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name      String
+  number    Int?
+  position  String? // ej: "Portero", "Defensa", "Mediocampista", "Delantero"
+  birthDate DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+/// Restricción de disponibilidad de un equipo dentro de un torneo:
+/// qué días de la semana puede jugar (ej: solo jueves, domingo y lunes).
+/// El generador de fixtures debe respetar esto al asignar partidos.
+model TeamAvailability {
+  id           String    @id @default(cuid())
+  teamId       String
+  team         Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  allowedDays DayOfWeek[] // días permitidos; vacío = sin restricción
+  notes       String?
+
+  @@unique([teamId, tournamentId])
+}
+
+// ============================================================
+// CALENDARIO Y PARTIDOS
+// ============================================================
+
+/// Una Jornada agrupa los partidos de una misma fecha/ronda dentro de una fase.
+/// Puede abarcar un rango de días (ej: de jueves a lunes).
+model Matchday {
+  id      String @id @default(cuid())
+  stageId String
+  stage   CompetitionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  number    Int // jornada 1, 2, 3...
+  label     String? // ej: "Jornada 1"
+  weekStart DateTime? // inicio del rango de días habilitado (ej: jueves)
+  weekEnd   DateTime? // fin del rango (ej: lunes)
+
+  matches Match[]
+
+  @@unique([stageId, number])
+  @@index([stageId])
+}
+
+enum MatchStatus {
+  SCHEDULED
+  PLAYED
+  POSTPONED
+  CANCELLED
+  WALKOVER // ganado por incomparecencia
+}
+
+/// Un partido entre dos equipos dentro de una fase (y opcionalmente una jornada).
+model Match {
+  id      String @id @default(cuid())
+  stageId String
+  stage   CompetitionStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  matchdayId String?
+  matchday   Matchday? @relation(fields: [matchdayId], references: [id], onDelete: SetNull)
+
+  homeTeamId String
+  homeTeam   Team   @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId String
+  awayTeam   Team   @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  homeScore Int?
+  awayScore Int?
+
+  scheduledAt DateTime?
+  dayOfWeek   DayOfWeek?
+  venue       String?
+  round       String? // ej: "Semifinal", "Final", "Vuelta"
+  status      MatchStatus @default(SCHEDULED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stageId])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+  @@index([matchdayId])
+}
