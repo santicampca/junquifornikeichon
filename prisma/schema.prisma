@@ -4,7 +4,12 @@
 // desde el cliente en vez de con constraints del lado del server).
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" genera el binario para donde corre el build; "rhel-openssl-3.0.x"
+  // es el runtime real de las funciones serverless de Vercel. Sin este segundo
+  // target, prisma generate igual corre bien en el build pero el engine que
+  // termina empaquetado no sirve para donde la función se ejecuta.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
