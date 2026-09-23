@@ -53,6 +53,44 @@ export async function resetTournamentAction(adminName: string): Promise<void> {
   revalidatePath("/", "layout");
 }
 
+/**
+ * Elimina por completo el torneo activo (equipos, fases, calendario,
+ * resultados) de la base. Si queda algún torneo archivado (de una creación
+ * anterior), el más reciente pasa a ser el activo; si no queda ninguno, la
+ * app vuelve al estado "sin torneo".
+ */
+export async function deleteTournamentAction(adminName: string): Promise<void> {
+  assertAdmin(adminName);
+
+  const state = await getActiveTournamentState();
+  if (!state) throw new Error("No hay torneo activo para eliminar.");
+
+  const stageIds = state.stages.map((s) => s.id);
+  const teamIds = state.teams.map((t) => t.id);
+
+  // Orden explícito para no depender de la emulación de cascade de Mongo:
+  // primero lo que referencia stages/teams, después stages/teams, al final el torneo.
+  await prisma.match.deleteMany({ where: { stageId: { in: stageIds } } });
+  await prisma.stageParticipant.deleteMany({ where: { stageId: { in: stageIds } } });
+  await prisma.stageAggregation.deleteMany({
+    where: { OR: [{ parentStageId: { in: stageIds } }, { childStageId: { in: stageIds } }] },
+  });
+  await prisma.matchday.deleteMany({ where: { stageId: { in: stageIds } } });
+  await prisma.competitionStage.deleteMany({ where: { id: { in: stageIds } } });
+  await prisma.teamAvailability.deleteMany({ where: { tournamentId: state.tournament.id } });
+  await prisma.player.deleteMany({ where: { teamId: { in: teamIds } } });
+  await prisma.team.deleteMany({ where: { id: { in: teamIds } } });
+  await prisma.season.deleteMany({ where: { tournamentId: state.tournament.id } });
+  await prisma.tournament.delete({ where: { id: state.tournament.id } });
+
+  const nextActive = await prisma.tournament.findFirst({ orderBy: { createdAt: "desc" } });
+  if (nextActive) {
+    await prisma.tournament.update({ where: { id: nextActive.id }, data: { isActive: true } });
+  }
+
+  revalidatePath("/", "layout");
+}
+
 export interface CreateTournamentOutcome {
   tournamentSlug: string;
   conflicts: CreateTournamentConflict[];

@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
-import { CalendarClock, Trophy } from "lucide-react";
+import Link from "next/link";
+import { CalendarClock, CalendarDays, Trophy } from "lucide-react";
 import { StageTabs } from "@/components/tournaments/stage-tabs";
 import { StandingsTable } from "@/components/standings/standings-table";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResetTournamentButton } from "@/components/admin/reset-tournament-button";
+import { DeleteTournamentButton } from "@/components/admin/delete-tournament-button";
 import { computeStandings, mergeStandings } from "@/lib/standings";
 import { getActiveTournamentState } from "@/lib/data";
 import type { Match } from "@/types/domain";
@@ -58,7 +60,17 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
             <p className="text-sm text-muted">{activeStage.name}</p>
           </div>
         </div>
-        <ResetTournamentButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/torneos/${tournament.slug}/calendario?fase=${activeStage.id}`}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-strong hover:bg-surface-elevated hover:text-foreground"
+          >
+            <CalendarDays className="size-4" />
+            Calendario
+          </Link>
+          <ResetTournamentButton />
+          <DeleteTournamentButton tournamentName={tournament.name} />
+        </div>
       </div>
 
       <div className="mb-6">
