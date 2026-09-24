@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Torneos FC | Gestión de torneos amateur",
+  title: "Junkifornicados | Gestión de torneos amateur",
   description:
     "Plataforma para crear, programar y seguir torneos de fútbol amateur entre amigos.",
 };
@@ -36,7 +36,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <AppStoreProvider>
-          <Navbar activeTournamentSlug={activeTournament?.tournament.slug} />
+          <Navbar activeTournamentSlug={activeTournament?.tournament.slug} teams={activeTournament?.teams} />
           <main className="flex-1">{children}</main>
         </AppStoreProvider>
       </body>

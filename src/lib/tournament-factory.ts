@@ -46,6 +46,13 @@ export interface CreateTournamentInput {
   /** Semanas de receso entre el fin del Apertura y el inicio del Clausura. */
   breakWeeksBetweenStages?: number;
   includeSupercopa?: boolean;
+  /**
+   * Agrega una fase de Playoffs (DRAFT, sin partidos): eliminación directa
+   * top-4 sobre la Tabla General, que el admin genera a mano una vez
+   * terminada la liga (ver generatePlayoffsAction/generatePlayoffsFinalAction
+   * en src/lib/actions.ts) porque los rivales dependen de la tabla final.
+   */
+  includePlayoffs?: boolean;
 }
 
 export interface CreateTournamentConflict extends SchedulingConflict {
@@ -93,6 +100,7 @@ function buildStageFixture(
     round: `Jornada ${m.round}`,
     status: "SCHEDULED",
     isMandatorySundayMatch: m.isMandatorySundayMatch,
+    isForfeit: false,
   }));
 
   const roundsCount = input.doubleRound ? (teamIds.length - 1) * 2 : teamIds.length - 1;
@@ -140,6 +148,7 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
       slug,
       managerName: t.managerName.trim(),
       primaryColor: t.primaryColor,
+      hasPin: false,
     };
   });
 
@@ -215,8 +224,24 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
     matchesByStage[supercopaId] = [];
   }
 
+  if (input.includePlayoffs) {
+    const playoffsId = generateId("stage");
+    stages.push({
+      id: playoffsId,
+      seasonId: tournamentId,
+      name: "Playoffs",
+      type: "PLAYOFFS",
+      format: "KNOCKOUT",
+      status: "DRAFT",
+      points,
+    });
+    matchesByStage[playoffsId] = [];
+  }
+
   return {
-    state: { tournament, teams, teamAvailability, stages, matchesByStage },
+    // Sin ajustes de puntos todavía: recién se crea el torneo. persist-tournament.ts
+    // arma los StageParticipant reales (en 0) directo desde `teams`/`stages`.
+    state: { tournament, teams, teamAvailability, stages, matchesByStage, stageParticipants: [] },
     conflicts: [...apertura.conflicts, ...clausura.conflicts],
     warnings: [...apertura.warnings, ...clausura.warnings],
   };

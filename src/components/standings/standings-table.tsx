@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { StandingRow } from "@/lib/standings";
 import type { Team } from "@/types/domain";
 import { TeamBadge } from "@/components/teams/team-badge";
+import { PointsAdjuster } from "@/components/admin/points-adjuster";
 import { cn } from "@/lib/utils";
 
 const FORM_TONE: Record<string, string> = {
@@ -14,11 +15,14 @@ export function StandingsTable({
   rows,
   teamsById,
   highlightTopN,
+  stageId,
 }: {
   rows: StandingRow[];
   teamsById: Map<string, Team>;
   /** Cuántas primeras posiciones resaltar (ej: zona de clasificación). */
   highlightTopN?: number;
+  /** Si se pasa, admin puede sumar/restar puntos a mano por equipo en esa fase. No aplica a la Tabla General. */
+  stageId?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
@@ -36,6 +40,7 @@ export function StandingsTable({
             <th className="px-2 py-2 text-center font-medium">DG</th>
             <th className="px-2 py-2 text-center font-medium">Pts</th>
             <th className="hidden px-3 py-2 text-right font-medium sm:table-cell">Racha</th>
+            {stageId && <th className="w-16 px-2 py-2 text-right font-medium">Ajustar</th>}
           </tr>
         </thead>
         <tbody>
@@ -83,6 +88,17 @@ export function StandingsTable({
                 </td>
                 <td className="px-2 py-2 text-center text-base font-bold text-foreground">
                   {row.points}
+                  {row.pointsAdjustment !== 0 && (
+                    <span
+                      className={cn(
+                        "ml-1 text-[10px] font-normal",
+                        row.pointsAdjustment > 0 ? "text-primary" : "text-loss",
+                      )}
+                    >
+                      ({row.pointsAdjustment > 0 ? "+" : ""}
+                      {row.pointsAdjustment})
+                    </span>
+                  )}
                 </td>
                 <td className="hidden px-3 py-2 sm:table-cell">
                   <div className="flex justify-end gap-1">
@@ -100,6 +116,11 @@ export function StandingsTable({
                     ))}
                   </div>
                 </td>
+                {stageId && (
+                  <td className="px-2 py-2">
+                    <PointsAdjuster stageId={stageId} teamId={row.teamId} />
+                  </td>
+                )}
               </tr>
             );
           })}

@@ -85,6 +85,7 @@ export function CreateTournamentDialog({
   const [description, setDescription] = useState("");
   const [doubleRound, setDoubleRound] = useState(true);
   const [includeSupercopa, setIncludeSupercopa] = useState(true);
+  const [includePlayoffs, setIncludePlayoffs] = useState(false);
   const [seasonStart, setSeasonStart] = useState(defaultSeasonStart);
   const [slots, setSlots] = useState<Record<DayOfWeek, number>>(DEFAULT_SLOTS);
   const [teams, setTeams] = useState<TeamRow[]>([emptyRow(), emptyRow()]);
@@ -158,6 +159,7 @@ export function CreateTournamentDialog({
         description: description.trim() || undefined,
         doubleRound,
         includeSupercopa,
+        includePlayoffs,
         seasonStart,
         weeklySlots,
         teams: trimmed.map((t, i) => ({
@@ -246,6 +248,14 @@ export function CreateTournamentDialog({
                     onChange={(e) => setIncludeSupercopa(e.target.checked)}
                   />
                   Incluir Supercopa
+                </label>
+                <label className="flex items-center gap-2 text-sm text-muted-strong">
+                  <input
+                    type="checkbox"
+                    checked={includePlayoffs}
+                    onChange={(e) => setIncludePlayoffs(e.target.checked)}
+                  />
+                  Incluir Playoffs (top 4)
                 </label>
               </div>
             </div>

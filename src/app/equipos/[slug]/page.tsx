@@ -15,7 +15,7 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
 
   const players = await getTeamPlayers(team.id);
 
-  const { teams, stages, matchesByStage } = state;
+  const { teams, stages, matchesByStage, stageParticipants } = state;
   const teamsById = new Map(teams.map((t) => [t.id, t]));
   const allMatches = Object.values(matchesByStage).flat();
   const teamMatches = allMatches.filter(
@@ -30,7 +30,11 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
       const stageMatches = (matchesByStage[stage.id] ?? []).filter(
         (m) => m.homeTeamId === team.id || m.awayTeamId === team.id,
       );
-      return { stage, row: computeStandings([team.id], stageMatches, stage.points)[0] };
+      const adjustment = stageParticipants.find((p) => p.stageId === stage.id && p.teamId === team.id)?.pointsAdjustment ?? 0;
+      return {
+        stage,
+        row: computeStandings([team.id], stageMatches, stage.points, 5, { [team.id]: adjustment })[0],
+      };
     })
     .filter(({ row }) => row.played > 0);
 

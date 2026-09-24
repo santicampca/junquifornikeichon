@@ -1,11 +1,14 @@
 import { TournamentCard } from "@/components/tournaments/tournament-card";
 import { NewTournamentButton } from "@/components/admin/new-tournament-button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getActiveTournamentState } from "@/lib/data";
+import { getActiveTournamentState, getLastTeamRoster } from "@/lib/data";
 import { Trophy } from "lucide-react";
 
 export default async function DashboardPage() {
   const state = await getActiveTournamentState();
+  // No depende de que haya torneo activo: si se borró la liga, sigue
+  // teniendo los últimos equipos conocidos para precargar en el asistente.
+  const lastRoster = await getLastTeamRoster();
 
   const playedMatches = state
     ? Object.values(state.matchesByStage)
@@ -23,7 +26,7 @@ export default async function DashboardPage() {
             Gestiona ligas de amigos: Apertura, Clausura, Supercopa y tabla general.
           </p>
         </div>
-        <NewTournamentButton currentTeams={state?.teams ?? []} currentTeamAvailability={state?.teamAvailability ?? []} />
+        <NewTournamentButton currentTeams={lastRoster.teams} currentTeamAvailability={lastRoster.teamAvailability} />
       </div>
 
       {!state ? (

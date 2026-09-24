@@ -83,9 +83,11 @@ export async function persistTournamentState(
     });
   }
 
-  // Todos los equipos participan de las fases con partidos propios (no Supercopa/General).
+  // Todos los equipos participan de las fases con partidos propios de entrada
+  // (Apertura/Clausura); Supercopa y Playoffs arrancan sin nadie inscripto
+  // porque sus participantes se deciden después (campeones / top 4).
   for (const s of state.stages) {
-    if (s.type === "GENERAL" || s.type === "SUPERCOPA") continue;
+    if (s.type === "GENERAL" || s.type === "SUPERCOPA" || s.type === "PLAYOFFS") continue;
     await prisma.stageParticipant.createMany({
       data: state.teams.map((t) => ({ stageId: stageIdMap.get(s.id)!, teamId: teamIdMap.get(t.id)! })),
     });

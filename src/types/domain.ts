@@ -5,7 +5,7 @@
  * los resultados de Prisma a esta forma antes de pasarlos a los componentes.
  */
 
-export type StageType = "APERTURA" | "CLAUSURA" | "SUPERCOPA" | "GENERAL" | "OTRO";
+export type StageType = "APERTURA" | "CLAUSURA" | "SUPERCOPA" | "GENERAL" | "PLAYOFFS" | "OTRO";
 
 export type StageFormat =
   | "ROUND_ROBIN_SINGLE"
@@ -77,6 +77,15 @@ export interface Team {
   managerName: string;
   primaryColor?: string;
   foundedYear?: number;
+  /** True si ya configuró su PIN de 3 dígitos (login de equipo). Nunca se expone el hash al cliente. */
+  hasPin: boolean;
+}
+
+/** Inscripción de un equipo en una fase; acá vive el ajuste manual de puntos. */
+export interface StageParticipant {
+  stageId: string;
+  teamId: string;
+  pointsAdjustment: number;
 }
 
 export interface Player {
@@ -120,6 +129,10 @@ export interface Match {
   status: MatchStatus;
   /** Ver comentario del campo homónimo en prisma/schema.prisma. */
   isMandatorySundayMatch: boolean;
+  /** Foto de comprobante como data URL (base64); requerida para cerrar PLAYED salvo forfeit. */
+  proofImageData?: string;
+  /** True si se cerró como forfeit (WALKOVER) en vez de con comprobante. */
+  isForfeit: boolean;
 }
 
 /**
@@ -133,6 +146,7 @@ export interface TournamentState {
   teamAvailability: TeamAvailability[];
   stages: CompetitionStage[];
   matchesByStage: Record<string, Match[]>;
+  stageParticipants: StageParticipant[];
 }
 
 export const STAGE_TYPE_LABEL: Record<StageType, string> = {
@@ -140,6 +154,7 @@ export const STAGE_TYPE_LABEL: Record<StageType, string> = {
   CLAUSURA: "Clausura",
   SUPERCOPA: "Supercopa",
   GENERAL: "Tabla General",
+  PLAYOFFS: "Playoffs",
   OTRO: "Otro",
 };
 

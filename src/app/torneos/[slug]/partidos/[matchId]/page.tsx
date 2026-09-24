@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { MatchLivePanel } from "@/components/admin/match-live-panel";
 import { RescheduleMatchForm } from "@/components/admin/reschedule-match-form";
 import { DAY_LABEL } from "@/types/domain";
-import { getActiveTournamentState } from "@/lib/data";
+import { getActiveTournamentState, getMatchProofImage } from "@/lib/data";
 
 const STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Programado",
@@ -32,6 +32,7 @@ export default async function MatchDetailPage(props: PageProps<"/torneos/[slug]/
   const homeTeam = teamsById.get(match.homeTeamId);
   const awayTeam = teamsById.get(match.awayTeamId);
   const date = match.scheduledAt ? new Date(match.scheduledAt) : undefined;
+  const proofImageData = await getMatchProofImage(match.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -92,10 +93,24 @@ export default async function MatchDetailPage(props: PageProps<"/torneos/[slug]/
             <span>🟨 {match.awayYellowCards} · 🟥 {match.awayRedCards}</span>
           </div>
         )}
+
+        {match.isForfeit && (
+          <p className="mt-4 border-t border-border pt-3 text-center text-xs text-loss">
+            Resultado por forfeit (incomparecencia).
+          </p>
+        )}
+
+        {proofImageData && (
+          <div className="mt-4 border-t border-border pt-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Comprobante</p>
+            {/* eslint-disable-next-line @next/next/no-img-element -- data URL, no next/image posible */}
+            <img src={proofImageData} alt="Comprobante del resultado" className="max-h-64 rounded-lg border border-border" />
+          </div>
+        )}
       </div>
 
       <div className="mt-6 space-y-4">
-        <MatchLivePanel match={match} homeTeam={homeTeam} awayTeam={awayTeam} />
+        <MatchLivePanel match={match} homeTeam={homeTeam} awayTeam={awayTeam} proofImageData={proofImageData} />
         <RescheduleMatchForm match={match} />
       </div>
 

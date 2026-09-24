@@ -69,7 +69,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdminStoreContext.Provider value={{ isAdmin: adminName !== null, adminName, login, logout }}>
-      {children}
+      <TeamAuthProvider>{children}</TeamAuthProvider>
     </AdminStoreContext.Provider>
   );
 }
@@ -77,5 +77,66 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 export function useAdmin(): AdminStoreValue {
   const ctx = useContext(AdminStoreContext);
   if (!ctx) throw new Error("useAdmin debe usarse dentro de <AppStoreProvider>");
+  return ctx;
+}
+
+// ============================================================
+// SESIÓN DE EQUIPO (PIN de 3 dígitos)
+// ============================================================
+
+const TEAM_STORAGE_KEY = "torneosfc:team:v1";
+
+interface TeamSessionValue {
+  teamId: string;
+  teamName: string;
+}
+
+interface TeamAuthValue {
+  session: TeamSessionValue | null;
+  setSession: (session: TeamSessionValue) => void;
+  logout: () => void;
+}
+
+const TeamAuthContext = createContext<TeamAuthValue | null>(null);
+
+function TeamAuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSessionState] = useState<TeamSessionValue | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TEAM_STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (raw) setSessionState(JSON.parse(raw));
+    } catch {
+      // ignorar
+    }
+  }, []);
+
+  const setSession = useCallback((next: TeamSessionValue) => {
+    setSessionState(next);
+    try {
+      window.localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // ignorar
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    setSessionState(null);
+    try {
+      window.localStorage.removeItem(TEAM_STORAGE_KEY);
+    } catch {
+      // ignorar
+    }
+  }, []);
+
+  return (
+    <TeamAuthContext.Provider value={{ session, setSession, logout }}>{children}</TeamAuthContext.Provider>
+  );
+}
+
+export function useTeamAuth(): TeamAuthValue {
+  const ctx = useContext(TeamAuthContext);
+  if (!ctx) throw new Error("useTeamAuth debe usarse dentro de <AppStoreProvider>");
   return ctx;
 }

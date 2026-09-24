@@ -61,6 +61,7 @@ enum StageType {
   CLAUSURA
   SUPERCOPA
   GENERAL // Tabla acumulada/general (suma de otras fases)
+  PLAYOFFS // Eliminación directa top-4 sobre la Tabla General, generada a mano por el admin
   OTRO
 }
 
@@ -141,6 +142,11 @@ model StageParticipant {
   group String? // para fases de grupos (ej: "Grupo A")
   seed  Int? // cabeza de serie / orden de siembra
 
+  /// Puntos sumados/restados a mano por el admin en esta fase (sanciones,
+  /// bonos, correcciones). Se suman a los puntos ganados en cancha al
+  /// calcular la tabla (ver src/lib/standings.ts).
+  pointsAdjustment Int @default(0)
+
   @@unique([stageId, teamId])
   @@index([teamId])
 }
@@ -163,8 +169,14 @@ model Team {
   managerName  String // "propietario/mánager"
   primaryColor String? // hex, para acentos de UI
   foundedYear  Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  /// Hash del PIN de 3 dígitos con el que el equipo/DT inicia sesión (ver
+  /// loginTeamAction/setTeamPinAction en src/lib/actions.ts). Null = todavía
+  /// no configuró su PIN.
+  pinHash String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   players           Player[]
   stageParticipants StageParticipant[]
@@ -282,6 +294,17 @@ model Match {
   /// (`scheduleMatchdays` en src/lib/fixtures.ts); es informativo, no se
   /// revalida en cada request.
   isMandatorySundayMatch Boolean @default(false)
+
+  /// Foto de comprobante del resultado, guardada como data URL (base64) para
+  /// no depender de un servicio externo de storage. Un partido no puede
+  /// pasar a PLAYED sin esto salvo que se cierre como WALKOVER (forfeit),
+  /// donde no hay nada que comprobar (ver finishMatchAction/markForfeitAction
+  /// en src/lib/actions.ts).
+  proofImageData String?
+
+  /// True si este resultado se cerró como forfeit (incomparecencia) en vez
+  /// de con comprobante de foto. Informativo para la UI.
+  isForfeit Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

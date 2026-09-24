@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, PlayCircle } from "lucide-react";
+import { CheckCircle2, ImagePlus, PlayCircle, ShieldAlert } from "lucide-react";
 import { useAdmin } from "@/lib/app-store";
-import { finishMatchAction, updateMatchLiveAction, type MatchLiveInput } from "@/lib/actions";
+import {
+  finishMatchAction,
+  markForfeitAction,
+  updateMatchLiveAction,
+  uploadMatchProofAction,
+  type MatchLiveInput,
+} from "@/lib/actions";
+import { compressImageFile } from "@/lib/image";
 import type { Match, Team } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +50,26 @@ function CounterInput({
   );
 }
 
-/** Acta en vivo: marcador + tarjetas editables, con "Guardar" (LIVE) y "Cerrar partido" (PLAYED). */
-export function MatchLivePanel({ match, homeTeam, awayTeam }: { match: Match; homeTeam?: Team; awayTeam?: Team }) {
+/**
+ * Acta en vivo: marcador + tarjetas editables, comprobante de foto y cierre
+ * del partido. "Cerrar partido" exige comprobante ya subido; para un
+ * partido no jugado (incomparecencia) está el forfeit aparte, que no lo pide.
+ */
+export function MatchLivePanel({
+  match,
+  homeTeam,
+  awayTeam,
+  proofImageData,
+}: {
+  match: Match;
+  homeTeam?: Team;
+  awayTeam?: Team;
+  /** Foto de comprobante ya cargada (si existe), traída aparte por su peso. */
+  proofImageData?: string;
+}) {
   const router = useRouter();
   const { isAdmin, adminName } = useAdmin();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<MatchLiveInput>({
     homeScore: match.homeScore ?? 0,
@@ -56,9 +79,15 @@ export function MatchLivePanel({ match, homeTeam, awayTeam }: { match: Match; ho
     homeRedCards: match.homeRedCards,
     awayRedCards: match.awayRedCards,
   });
-  const [submitting, setSubmitting] = useState<"save" | "finish" | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | undefined>(proofImageData);
+  const [submitting, setSubmitting] = useState<"save" | "finish" | "proof" | "forfeit" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  const [forfeitOpen, setForfeitOpen] = useState(false);
+  const [forfeitWinner, setForfeitWinner] = useState<"home" | "away">("home");
+  const [forfeitWinnerScore, setForfeitWinnerScore] = useState(3);
+  const [forfeitLoserScore, setForfeitLoserScore] = useState(0);
 
   const isClosed = CLOSED_STATUSES.includes(match.status);
 
@@ -94,6 +123,40 @@ export function MatchLivePanel({ match, homeTeam, awayTeam }: { match: Match; ho
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar el partido.");
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function handleProofChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSubmitting("proof");
+    setError(null);
+    try {
+      const dataUrl = await compressImageFile(file);
+      await uploadMatchProofAction(adminName!, match.id, dataUrl);
+      setProofPreview(dataUrl);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir el comprobante.");
+    } finally {
+      setSubmitting(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleForfeit() {
+    const winnerTeamId = forfeitWinner === "home" ? match.homeTeamId : match.awayTeamId;
+    const winnerName = (forfeitWinner === "home" ? homeTeam?.name : awayTeam?.name) ?? "el ganador";
+    if (!window.confirm(`¿Cerrar como forfeit a favor de ${winnerName}? No se puede deshacer.`)) return;
+    setSubmitting("forfeit");
+    setError(null);
+    try {
+      await markForfeitAction(adminName!, match.id, winnerTeamId, forfeitWinnerScore, forfeitLoserScore);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo marcar el forfeit.");
     } finally {
       setSubmitting(null);
     }
@@ -158,6 +221,38 @@ export function MatchLivePanel({ match, homeTeam, awayTeam }: { match: Match; ho
         </div>
       </div>
 
+      <div className="mt-4 border-t border-border pt-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          Comprobante del resultado
+        </p>
+        {proofPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data URL, no next/image posible
+          <img src={proofPreview} alt="Comprobante" className="mb-2 max-h-40 rounded-lg border border-border" />
+        ) : (
+          <p className="mb-2 text-xs text-muted">
+            Sin comprobante todavía. Hace falta uno para poder cerrar el partido (salvo forfeit).
+          </p>
+        )}
+        <label
+          className={cn(
+            "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-strong hover:bg-surface",
+            submitting === "proof" && "opacity-50",
+          )}
+        >
+          <ImagePlus className="size-4" />
+          {submitting === "proof" ? "Subiendo…" : proofPreview ? "Cambiar foto" : "Subir foto"}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleProofChange}
+            disabled={submitting !== null}
+            className="hidden"
+          />
+        </label>
+      </div>
+
       {error && <p className="mt-3 text-xs text-loss">{error}</p>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
@@ -172,15 +267,76 @@ export function MatchLivePanel({ match, homeTeam, awayTeam }: { match: Match; ho
         <button
           type="button"
           onClick={handleFinish}
-          disabled={submitting !== null}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50",
-          )}
+          disabled={submitting !== null || !proofPreview}
+          title={!proofPreview ? "Subí el comprobante primero" : undefined}
+          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
           <CheckCircle2 className="size-4" />
           {submitting === "finish" ? "Cerrando…" : "Cerrar partido"}
         </button>
         {saved && <span className="text-xs text-primary">Guardado.</span>}
+      </div>
+
+      <div className="mt-4 border-t border-border pt-3">
+        <button
+          type="button"
+          onClick={() => setForfeitOpen((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-medium text-loss hover:underline"
+        >
+          <ShieldAlert className="size-3.5" />
+          {forfeitOpen ? "Cancelar forfeit" : "Marcar como forfeit"}
+        </button>
+        {forfeitOpen && (
+          <div className="mt-2 space-y-2 rounded-lg border border-loss/30 bg-loss/5 p-3">
+            <p className="text-xs text-muted">
+              Para cuando un equipo no se presentó. No pide comprobante y cierra el partido directo.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  checked={forfeitWinner === "home"}
+                  onChange={() => setForfeitWinner("home")}
+                />
+                Ganó {homeTeam?.name ?? "Local"}
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  checked={forfeitWinner === "away"}
+                  onChange={() => setForfeitWinner("away")}
+                />
+                Ganó {awayTeam?.name ?? "Visitante"}
+              </label>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-xs text-muted">Marcador:</span>
+              <input
+                type="number"
+                min={0}
+                value={forfeitWinnerScore}
+                onChange={(e) => setForfeitWinnerScore(Math.max(0, Number(e.target.value) || 0))}
+                className="w-14 rounded-md border border-border bg-background px-2 py-1 text-center text-sm"
+              />
+              <span>-</span>
+              <input
+                type="number"
+                min={0}
+                value={forfeitLoserScore}
+                onChange={(e) => setForfeitLoserScore(Math.max(0, Number(e.target.value) || 0))}
+                className="w-14 rounded-md border border-border bg-background px-2 py-1 text-center text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleForfeit}
+              disabled={submitting !== null}
+              className="rounded-lg bg-loss px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {submitting === "forfeit" ? "Cerrando…" : "Cerrar como forfeit"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

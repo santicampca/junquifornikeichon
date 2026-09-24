@@ -7,6 +7,8 @@ import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResetTournamentButton } from "@/components/admin/reset-tournament-button";
 import { DeleteTournamentButton } from "@/components/admin/delete-tournament-button";
+import { EditTournamentName } from "@/components/admin/edit-tournament-name";
+import { GeneratePlayoffsButton } from "@/components/admin/generate-playoffs-button";
 import { computeStandings, mergeStandings } from "@/lib/standings";
 import { getActiveTournamentState } from "@/lib/data";
 import type { Match } from "@/types/domain";
@@ -18,9 +20,15 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
   const state = await getActiveTournamentState();
   if (!state || slug !== state.tournament.slug) notFound();
 
-  const { tournament, teams, stages, matchesByStage } = state;
+  const { tournament, teams, stages, matchesByStage, stageParticipants } = state;
   const teamIds = teams.map((t) => t.id);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
+
+  function adjustmentsForStage(stageId: string): Record<string, number> {
+    return Object.fromEntries(
+      stageParticipants.filter((p) => p.stageId === stageId).map((p) => [p.teamId, p.pointsAdjustment]),
+    );
+  }
 
   const activeStage =
     stages.find((s) => s.id === fase) ?? stages.find((s) => s.type === "APERTURA") ?? stages[0];
@@ -33,10 +41,10 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
     ? mergeStandings(
         (activeStage.aggregatesFrom ?? []).map((childId) => {
           const child = stages.find((s) => s.id === childId);
-          return computeStandings(teamIds, matchesByStage[childId] ?? [], child?.points);
+          return computeStandings(teamIds, matchesByStage[childId] ?? [], child?.points, 5, adjustmentsForStage(childId));
         }),
       )
-    : computeStandings(teamIds, ownMatches, activeStage.points);
+    : computeStandings(teamIds, ownMatches, activeStage.points, 5, adjustmentsForStage(activeStage.id));
 
   const upcoming = [...ownMatches]
     .filter((m) => m.status === "SCHEDULED")
@@ -44,7 +52,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
     .slice(0, 4);
 
   const recent = [...ownMatches]
-    .filter((m) => m.status === "PLAYED")
+    .filter((m) => m.status === "PLAYED" || m.status === "WALKOVER")
     .sort((a, b) => (b.scheduledAt ?? "").localeCompare(a.scheduledAt ?? ""))
     .slice(0, 4);
 
@@ -56,7 +64,11 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
             <Trophy className="size-6" />
           </span>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">{tournament.name}</h1>
+            <EditTournamentName
+              tournamentId={tournament.id}
+              name={tournament.name}
+              className="text-xl font-bold tracking-tight text-foreground"
+            />
             <p className="text-sm text-muted">{activeStage.name}</p>
           </div>
         </div>
@@ -78,18 +90,39 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
       </div>
 
       {!hasParticipants ? (
-        <EmptyState
-          icon={CalendarClock}
-          title="Fase aún no definida"
-          description="La Supercopa se juega entre el campeón del Apertura y el campeón del Clausura. Se habilitará al finalizar ambas fases."
-        />
+        <div className="space-y-4">
+          <EmptyState
+            icon={CalendarClock}
+            title="Fase aún no definida"
+            description={
+              activeStage.type === "PLAYOFFS"
+                ? "Eliminación directa top 4 sobre la Tabla General: 1° vs 4°, 2° vs 3°. Se genera a mano cuando termine la liga."
+                : "La Supercopa se juega entre el campeón del Apertura y el campeón del Clausura. Se habilitará al finalizar ambas fases."
+            }
+          />
+          {activeStage.type === "PLAYOFFS" && (
+            <div className="flex justify-center">
+              <GeneratePlayoffsButton stageId={activeStage.id} matches={ownMatches} />
+            </div>
+          )}
+        </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
               Tabla de posiciones
             </h2>
-            <StandingsTable rows={rows} teamsById={teamsById} highlightTopN={2} />
+            <StandingsTable
+              rows={rows}
+              teamsById={teamsById}
+              highlightTopN={2}
+              stageId={isGeneral || activeStage.type === "PLAYOFFS" ? undefined : activeStage.id}
+            />
+            {activeStage.type === "PLAYOFFS" && (
+              <div className="mt-3 flex justify-center">
+                <GeneratePlayoffsButton stageId={activeStage.id} matches={ownMatches} />
+              </div>
+            )}
             {isGeneral && (
               <p className="mt-2 text-xs text-muted">
                 Suma los puntos de Apertura y Clausura. Esta fase no tiene partidos propios.

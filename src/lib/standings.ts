@@ -12,6 +12,8 @@ export interface StandingRow {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+  /** Puntos sumados/restados a mano por el admin, ya incluidos en `points`. */
+  pointsAdjustment: number;
   /** Últimos resultados, del más antiguo al más reciente. */
   form: MatchResult[];
 }
@@ -29,6 +31,7 @@ function emptyRow(teamId: string): StandingRow {
     goalsAgainst: 0,
     goalDifference: 0,
     points: 0,
+    pointsAdjustment: 0,
     form: [],
   };
 }
@@ -37,12 +40,16 @@ function emptyRow(teamId: string): StandingRow {
  * Calcula la tabla de posiciones a partir de una lista de partidos.
  * Solo se contabilizan los partidos con estado PLAYED y marcador definido.
  * Los WALKOVER se tratan como victoria/derrota sin goles adicionales.
+ * `adjustments` (teamId -> delta) son puntos sumados/restados a mano por el
+ * admin (sanciones, bonos, etc.); se suman al final, después de los puntos
+ * ganados en cancha.
  */
 export function computeStandings(
   teamIds: string[],
   matches: Match[],
   points: PointsConfig = DEFAULT_POINTS,
   formSize = 5,
+  adjustments: Record<string, number> = {},
 ): StandingRow[] {
   const rows = new Map<string, StandingRow>();
   for (const id of teamIds) rows.set(id, emptyRow(id));
@@ -97,6 +104,8 @@ export function computeStandings(
   for (const row of rows.values()) {
     row.goalDifference = row.goalsFor - row.goalsAgainst;
     row.form = row.form.slice(-formSize);
+    row.pointsAdjustment = adjustments[row.teamId] ?? 0;
+    row.points += row.pointsAdjustment;
   }
 
   return sortStandings([...rows.values()]);
@@ -132,6 +141,7 @@ export function mergeStandings(rowsList: StandingRow[][]): StandingRow[] {
       current.goalsFor += row.goalsFor;
       current.goalsAgainst += row.goalsAgainst;
       current.points += row.points;
+      current.pointsAdjustment += row.pointsAdjustment;
       current.form = [...current.form, ...row.form];
       merged.set(row.teamId, current);
     }

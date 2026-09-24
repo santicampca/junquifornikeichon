@@ -1,6 +1,40 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import type { CompetitionStage, Match, Player, Team, TeamAvailability, TournamentState } from "@/types/domain";
+import type {
+  CompetitionStage,
+  Match,
+  Player,
+  StageParticipant,
+  Team,
+  TeamAvailability,
+  TournamentState,
+} from "@/types/domain";
+
+// `proofImageData` (foto de comprobante en base64) puede pesar bastante y
+// `getActiveTournamentState` trae TODOS los partidos del torneo en cada
+// request de cada página — incluirla ahí infla cada request innecesariamente.
+// Se excluye acá y se trae aparte, solo en la página de detalle del
+// partido, con `getMatchProofImage`.
+const MATCH_SELECT_WITHOUT_PROOF = {
+  id: true,
+  stageId: true,
+  matchdayId: true,
+  homeTeamId: true,
+  awayTeamId: true,
+  homeScore: true,
+  awayScore: true,
+  homeYellowCards: true,
+  awayYellowCards: true,
+  homeRedCards: true,
+  awayRedCards: true,
+  scheduledAt: true,
+  dayOfWeek: true,
+  venue: true,
+  round: true,
+  status: true,
+  isMandatorySundayMatch: true,
+  isForfeit: true,
+} as const;
 
 /**
  * Lee el torneo activo (Tournament.isActive = true) completo desde Mongo y
@@ -23,7 +57,8 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
           stages: {
             include: {
               aggregatesFrom: true,
-              matches: true,
+              participants: true,
+              matches: { select: MATCH_SELECT_WITHOUT_PROOF },
             },
           },
         },
@@ -43,6 +78,7 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
     managerName: t.managerName,
     primaryColor: t.primaryColor ?? undefined,
     foundedYear: t.foundedYear ?? undefined,
+    hasPin: t.pinHash !== null,
   }));
 
   const teamAvailability: TeamAvailability[] = tournament.teamAvailability.map((a) => ({
@@ -89,8 +125,19 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
       round: m.round ?? undefined,
       status: m.status,
       isMandatorySundayMatch: m.isMandatorySundayMatch ?? false,
+      isForfeit: m.isForfeit ?? false,
+      // No se trae acá a propósito (ver MATCH_SELECT_WITHOUT_PROOF).
+      proofImageData: undefined,
     }));
   }
+
+  const stageParticipants: StageParticipant[] = stageRecords.flatMap((s) =>
+    s.participants.map((p) => ({
+      stageId: p.stageId,
+      teamId: p.teamId,
+      pointsAdjustment: p.pointsAdjustment ?? 0,
+    })),
+  );
 
   return {
     tournament: {
@@ -104,7 +151,60 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
     teamAvailability,
     stages,
     matchesByStage,
+    stageParticipants,
   };
+});
+
+/**
+ * Roster de equipos para "Usar plantilla actual" en el asistente de crear
+ * torneo. No depende de que haya un torneo activo: busca el `tournamentId`
+ * más reciente entre TODOS los equipos que existen (incluidos los
+ * huérfanos de una liga borrada, ver `deleteTournamentAction`) y devuelve
+ * ese grupo completo. Así el asistente siempre tiene equipos para
+ * precargar, incluso recién después de borrar la liga activa.
+ */
+export const getLastTeamRoster = cache(
+  async (): Promise<{ teams: Team[]; teamAvailability: TeamAvailability[] }> => {
+    const latestTeam = await prisma.team.findFirst({ orderBy: { createdAt: "desc" } });
+    if (!latestTeam) return { teams: [], teamAvailability: [] };
+
+    const [teamRecords, availabilityRecords] = await Promise.all([
+      prisma.team.findMany({ where: { tournamentId: latestTeam.tournamentId }, orderBy: { createdAt: "asc" } }),
+      prisma.teamAvailability.findMany({ where: { tournamentId: latestTeam.tournamentId } }),
+    ]);
+
+    const teams: Team[] = teamRecords.map((t) => ({
+      id: t.id,
+      tournamentId: t.tournamentId,
+      name: t.name,
+      shortName: t.shortName ?? undefined,
+      slug: t.slug,
+      logoUrl: t.logoUrl ?? undefined,
+      managerName: t.managerName,
+      primaryColor: t.primaryColor ?? undefined,
+      foundedYear: t.foundedYear ?? undefined,
+      hasPin: t.pinHash !== null,
+    }));
+
+    const teamAvailability: TeamAvailability[] = availabilityRecords.map((a) => ({
+      teamId: a.teamId,
+      tournamentId: a.tournamentId,
+      allowedDays: a.allowedDays,
+      notes: a.notes ?? undefined,
+    }));
+
+    return { teams, teamAvailability };
+  },
+);
+
+/**
+ * Trae solo la foto de comprobante de un partido (base64), separada del
+ * snapshot principal por su peso (ver `MATCH_SELECT_WITHOUT_PROOF`). Se usa
+ * únicamente en la página de detalle del partido.
+ */
+export const getMatchProofImage = cache(async (matchId: string): Promise<string | undefined> => {
+  const match = await prisma.match.findUnique({ where: { id: matchId }, select: { proofImageData: true } });
+  return match?.proofImageData ?? undefined;
 });
 
 /**

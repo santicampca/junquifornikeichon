@@ -45,7 +45,7 @@ export function DeleteTournamentButton({ tournamentName }: { tournamentName: str
       <ConfirmDialog
         open={open}
         title={`¿Eliminar "${tournamentName}"?`}
-        description="Se borran para siempre el torneo, los equipos, el calendario y todos los resultados cargados. No hay forma de deshacer esto."
+        description="Se borran para siempre el calendario y todos los resultados cargados de esta liga. Los equipos NO se borran: quedan disponibles para reusar como plantilla en la próxima liga que crees. No hay forma de deshacer esto."
         confirmLabel={submitting ? "Eliminando…" : "Sí, eliminar todo"}
         tone="danger"
         onConfirm={handleConfirm}
