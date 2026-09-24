@@ -57,6 +57,8 @@ export interface CreateTournamentResult {
   state: TournamentState;
   /** Partidos que el motor de calendario no pudo ubicar; requieren ajuste manual. */
   conflicts: CreateTournamentConflict[];
+  /** Jornadas sin partido dominical obligatorio; ver fixtures.ts. */
+  warnings: string[];
 }
 
 function buildStageFixture(
@@ -66,9 +68,9 @@ function buildStageFixture(
   input: Pick<CreateTournamentInput, "doubleRound" | "weeklySlots">,
   availability: TeamAvailability[],
   seasonStart: Date,
-): { matches: Match[]; conflicts: CreateTournamentConflict[]; roundsCount: number } {
+): { matches: Match[]; conflicts: CreateTournamentConflict[]; warnings: string[]; roundsCount: number } {
   const fixture = generateRoundRobin(teamIds, { doubleRound: input.doubleRound });
-  const { scheduled, conflicts } = scheduleMatchdays(fixture, {
+  const { scheduled, conflicts, warnings } = scheduleMatchdays(fixture, {
     seasonStart,
     weeklySlots: input.weeklySlots,
     availability,
@@ -82,10 +84,15 @@ function buildStageFixture(
     awayTeamId: m.awayTeamId,
     homeScore: null,
     awayScore: null,
+    homeYellowCards: 0,
+    awayYellowCards: 0,
+    homeRedCards: 0,
+    awayRedCards: 0,
     scheduledAt: m.scheduledAt.toISOString(),
     dayOfWeek: m.dayOfWeek,
     round: `Jornada ${m.round}`,
     status: "SCHEDULED",
+    isMandatorySundayMatch: m.isMandatorySundayMatch,
   }));
 
   const roundsCount = input.doubleRound ? (teamIds.length - 1) * 2 : teamIds.length - 1;
@@ -93,6 +100,7 @@ function buildStageFixture(
   return {
     matches,
     conflicts: conflicts.map((c) => ({ ...c, stageId, stageName })),
+    warnings: warnings.map((w) => `${stageName} · ${w}`),
     roundsCount,
   };
 }
@@ -210,5 +218,6 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
   return {
     state: { tournament, teams, teamAvailability, stages, matchesByStage },
     conflicts: [...apertura.conflicts, ...clausura.conflicts],
+    warnings: [...apertura.warnings, ...clausura.warnings],
   };
 }

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import type { CompetitionStage, Match, Team, TeamAvailability, TournamentState } from "@/types/domain";
+import type { CompetitionStage, Match, Player, Team, TeamAvailability, TournamentState } from "@/types/domain";
 
 /**
  * Lee el torneo activo (Tournament.isActive = true) completo desde Mongo y
@@ -75,11 +75,20 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
       awayTeamId: m.awayTeamId,
       homeScore: m.homeScore ?? null,
       awayScore: m.awayScore ?? null,
+      // `?? 0` / `?? false`: los partidos sembrados antes de agregar estos
+      // campos no los tienen en el documento de Mongo; Prisma normalmente
+      // rellena el default al leer, pero esto blinda igual contra un
+      // `undefined` si algún documento viejo no lo trae.
+      homeYellowCards: m.homeYellowCards ?? 0,
+      awayYellowCards: m.awayYellowCards ?? 0,
+      homeRedCards: m.homeRedCards ?? 0,
+      awayRedCards: m.awayRedCards ?? 0,
       scheduledAt: m.scheduledAt ? m.scheduledAt.toISOString() : undefined,
       dayOfWeek: m.dayOfWeek ?? undefined,
       venue: m.venue ?? undefined,
       round: m.round ?? undefined,
       status: m.status,
+      isMandatorySundayMatch: m.isMandatorySundayMatch ?? false,
     }));
   }
 
@@ -96,4 +105,24 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
     stages,
     matchesByStage,
   };
+});
+
+/**
+ * Plantilla de jugadores de un equipo. Separada de `getActiveTournamentState`
+ * porque solo se necesita en la página de detalle del equipo, no en cada
+ * request del resto de la app.
+ */
+export const getTeamPlayers = cache(async (teamId: string): Promise<Player[]> => {
+  const players = await prisma.player.findMany({
+    where: { teamId },
+    orderBy: [{ number: "asc" }, { name: "asc" }],
+  });
+
+  return players.map((p) => ({
+    id: p.id,
+    teamId: p.teamId,
+    name: p.name,
+    number: p.number ?? undefined,
+    position: p.position ?? undefined,
+  }));
 });

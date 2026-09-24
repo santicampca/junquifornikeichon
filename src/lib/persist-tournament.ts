@@ -104,6 +104,7 @@ export async function persistTournamentState(
         dayOfWeek: m.dayOfWeek,
         round: m.round,
         status: m.status,
+        isMandatorySundayMatch: m.isMandatorySundayMatch,
       })),
     });
   }

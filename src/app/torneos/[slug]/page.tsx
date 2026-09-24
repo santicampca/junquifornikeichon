@@ -112,6 +112,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
                       match={match}
                       homeTeam={teamsById.get(match.homeTeamId)}
                       awayTeam={teamsById.get(match.awayTeamId)}
+                      tournamentSlug={tournament.slug}
                     />
                   ))}
                 </div>
@@ -132,6 +133,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
                       match={match}
                       homeTeam={teamsById.get(match.homeTeamId)}
                       awayTeam={teamsById.get(match.awayTeamId)}
+                      tournamentSlug={tournament.slug}
                     />
                   ))}
                 </div>

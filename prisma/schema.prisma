@@ -240,6 +240,7 @@ model Matchday {
 
 enum MatchStatus {
   SCHEDULED
+  LIVE // el admin abrió el acta y está cargando el partido en curso
   PLAYED
   POSTPONED
   CANCELLED
@@ -263,11 +264,24 @@ model Match {
   homeScore Int?
   awayScore Int?
 
+  homeYellowCards Int @default(0)
+  awayYellowCards Int @default(0)
+  homeRedCards    Int @default(0)
+  awayRedCards    Int @default(0)
+
   scheduledAt DateTime?
   dayOfWeek   DayOfWeek?
   venue       String?
   round       String? // ej: "Semifinal", "Final", "Vuelta"
   status      MatchStatus @default(SCHEDULED)
+
+  /// True cuando este partido es el que cumple, dentro de su jornada, la
+  /// regla del "partido dominical obligatorio": todo domingo debe tener al
+  /// menos un partido de un equipo con disponibilidad restringida (ej: Alianza
+  /// Lima o UD Europollas). Lo calcula el generador de fixtures
+  /// (`scheduleMatchdays` en src/lib/fixtures.ts); es informativo, no se
+  /// revalida en cada request.
+  isMandatorySundayMatch Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

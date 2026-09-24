@@ -69,6 +69,13 @@ export interface WeeklySlot {
 export interface ScheduledMatch extends GeneratedMatch {
   scheduledAt: Date;
   dayOfWeek: DayOfWeek;
+  /**
+   * True si este partido es el que cumple, dentro de su jornada, la regla
+   * del "domingo obligatorio": todo domingo debe tener al menos un partido
+   * de un equipo con disponibilidad restringida (ej: Alianza Lima, UD
+   * Europollas). Ver `computeMandatorySundayMatches`.
+   */
+  isMandatorySundayMatch: boolean;
 }
 
 export interface SchedulingConflict extends GeneratedMatch {
@@ -84,6 +91,13 @@ export interface SchedulingResult {
    * jornada).
    */
   conflicts: SchedulingConflict[];
+  /**
+   * Jornadas que quedaron sin ningún partido dominical de un equipo con
+   * disponibilidad restringida (ver `computeMandatorySundayMatches`). No
+   * bloquea la generación —el calendario igual se arma— pero se reporta
+   * para que el admin lo revise manualmente.
+   */
+  warnings: string[];
 }
 
 const DAY_INDEX: Record<DayOfWeek, number> = {
@@ -112,6 +126,10 @@ function offsetFromAnchor(anchorDay: DayOfWeek, day: DayOfWeek): number {
  *    lista blanca de días en los que un equipo puede jugar. Un equipo
  *    sin entrada en `availability` puede jugar cualquier día de la
  *    plantilla.
+ *  - La regla del "domingo obligatorio": marca (`isMandatorySundayMatch`)
+ *    los partidos de domingo que involucran a un equipo con disponibilidad
+ *    restringida, y reporta en `warnings` las jornadas donde ninguno cumplió
+ *    esa condición.
  *
  * Algoritmo (heurística de CSP — "minimum remaining values"):
  *  1. Para cada partido de la jornada se calculan sus días válidos:
@@ -167,8 +185,10 @@ export function scheduleMatchdays(
 
   const scheduled: ScheduledMatch[] = [];
   const conflicts: SchedulingConflict[] = [];
+  const warnings: string[] = [];
 
   for (const [round, roundMatches] of [...byRound.entries()].sort((a, b) => a[0] - b[0])) {
+    const roundScheduled: ScheduledMatch[] = [];
     const windowStart = new Date(seasonStart);
     windowStart.setDate(windowStart.getDate() + (round - 1) * windowLengthDays);
 
@@ -224,9 +244,34 @@ export function scheduleMatchdays(
       const scheduledAt = new Date(windowStart);
       scheduledAt.setDate(scheduledAt.getDate() + offsetFromAnchor(anchorDay, bestDay));
 
-      scheduled.push({ ...match, dayOfWeek: bestDay, scheduledAt });
+      roundScheduled.push({ ...match, dayOfWeek: bestDay, scheduledAt, isMandatorySundayMatch: false });
     }
+
+    // Regla del domingo obligatorio: un equipo con disponibilidad
+    // restringida (`allowedByTeam`, ej: Alianza Lima, UD Europollas) es
+    // "sunday-constrained". Si el domingo de la plantilla semanal no tiene
+    // ningún partido de esos equipos, se reporta como warning (no bloquea).
+    const sundayInSlots = weeklySlots.some((s) => s.day === "SUNDAY");
+    if (sundayInSlots) {
+      let hasMandatorySundayMatch = false;
+      for (const m of roundScheduled) {
+        if (
+          m.dayOfWeek === "SUNDAY" &&
+          (allowedByTeam.has(m.homeTeamId) || allowedByTeam.has(m.awayTeamId))
+        ) {
+          m.isMandatorySundayMatch = true;
+          hasMandatorySundayMatch = true;
+        }
+      }
+      if (!hasMandatorySundayMatch) {
+        warnings.push(
+          `Jornada ${round}: no quedó ningún partido dominical de un equipo con disponibilidad restringida.`,
+        );
+      }
+    }
+
+    scheduled.push(...roundScheduled);
   }
 
-  return { scheduled, conflicts };
+  return { scheduled, conflicts, warnings };
 }

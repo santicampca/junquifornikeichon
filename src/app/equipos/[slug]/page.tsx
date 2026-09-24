@@ -1,17 +1,19 @@
 import { notFound } from "next/navigation";
-import { Users } from "lucide-react";
 import { TeamBadge } from "@/components/teams/team-badge";
+import { TeamRoster } from "@/components/teams/team-roster";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeStandings } from "@/lib/standings";
-import { getActiveTournamentState } from "@/lib/data";
+import { getActiveTournamentState, getTeamPlayers } from "@/lib/data";
 
 export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]">) {
   const { slug } = await props.params;
   const state = await getActiveTournamentState();
   const team = state?.teams.find((t) => t.slug === slug);
   if (!state || !team) notFound();
+
+  const players = await getTeamPlayers(team.id);
 
   const { teams, stages, matchesByStage } = state;
   const teamsById = new Map(teams.map((t) => [t.id, t]));
@@ -108,6 +110,7 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
                   match={match}
                   homeTeam={teamsById.get(match.homeTeamId)}
                   awayTeam={teamsById.get(match.awayTeamId)}
+                  tournamentSlug={state.tournament.slug}
                 />
               ))}
             </div>
@@ -115,14 +118,12 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
         </div>
 
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Plantilla</h2>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+            Plantilla ({players.length})
+          </h2>
           <Card>
             <CardContent>
-              <EmptyState
-                icon={Users}
-                title="Módulo de plantilla próximamente"
-                description="Aquí se listarán los jugadores del equipo: nombre, dorsal y posición."
-              />
+              <TeamRoster teamId={team.id} players={players} />
             </CardContent>
           </Card>
         </div>

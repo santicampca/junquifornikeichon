@@ -83,6 +83,7 @@ export default async function CalendarPage(props: PageProps<"/torneos/[slug]/cal
                     match={match}
                     homeTeam={teamsById.get(match.homeTeamId)}
                     awayTeam={teamsById.get(match.awayTeamId)}
+                    tournamentSlug={tournament.slug}
                   />
                 ))}
               </div>

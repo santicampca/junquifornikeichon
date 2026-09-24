@@ -153,7 +153,7 @@ export function CreateTournamentDialog({
 
     setSubmitting(true);
     try {
-      const { tournamentSlug, conflicts } = await createTournamentAction(adminName, {
+      const { tournamentSlug, conflicts, warnings } = await createTournamentAction(adminName, {
         name: name.trim(),
         description: description.trim() || undefined,
         doubleRound,
@@ -169,10 +169,17 @@ export function CreateTournamentDialog({
       });
       onClose();
       router.push(`/torneos/${tournamentSlug}`);
+      const notes: string[] = [];
       if (conflicts.length > 0) {
-        window.alert(
-          `Torneo creado. Ojo: ${conflicts.length} partido(s) no se pudieron ubicar automáticamente en la plantilla semanal (faltó cupo); vas a tener que reprogramarlos a mano.`,
+        notes.push(
+          `${conflicts.length} partido(s) no se pudieron ubicar automáticamente en la plantilla semanal (faltó cupo); vas a tener que reprogramarlos a mano.`,
         );
+      }
+      if (warnings.length > 0) {
+        notes.push(`${warnings.length} jornada(s) quedaron sin el partido dominical obligatorio:\n${warnings.join("\n")}`);
+      }
+      if (notes.length > 0) {
+        window.alert(`Torneo creado. Ojo:\n\n${notes.join("\n\n")}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear el torneo.");

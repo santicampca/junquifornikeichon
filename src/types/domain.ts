@@ -18,6 +18,7 @@ export type StageStatus = "DRAFT" | "SCHEDULED" | "IN_PROGRESS" | "FINISHED";
 
 export type MatchStatus =
   | "SCHEDULED"
+  | "LIVE"
   | "PLAYED"
   | "POSTPONED"
   | "CANCELLED"
@@ -108,11 +109,17 @@ export interface Match {
   awayTeamId: string;
   homeScore: number | null;
   awayScore: number | null;
+  homeYellowCards: number;
+  awayYellowCards: number;
+  homeRedCards: number;
+  awayRedCards: number;
   scheduledAt?: string; // ISO date
   dayOfWeek?: DayOfWeek;
   venue?: string;
   round?: string;
   status: MatchStatus;
+  /** Ver comentario del campo homónimo en prisma/schema.prisma. */
+  isMandatorySundayMatch: boolean;
 }
 
 /**
