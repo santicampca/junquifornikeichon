@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Music, Trash2, Upload } from "lucide-react";
+import { Music, Star, Trash2, Upload } from "lucide-react";
 import { useAdmin } from "@/lib/app-store";
-import { addPlaylistTrackAction, deletePlaylistTrackAction } from "@/lib/actions";
+import { addPlaylistTrackAction, deletePlaylistTrackAction, setPlaylistAnthemAction } from "@/lib/actions";
 import { readFileAsDataUrl } from "@/lib/file";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { PlaylistTrack } from "@/types/domain";
@@ -61,13 +61,20 @@ export function PlaylistPanel({ tracks }: { tracks: PlaylistTrack[] }) {
     router.refresh();
   }
 
+  async function handleSetAnthem(id: string, isAnthem: boolean) {
+    if (!adminName) return;
+    await setPlaylistAnthemAction(adminName, isAnthem ? null : id);
+    router.refresh();
+  }
+
   return (
     <div className="space-y-4">
       {isAdmin && adminName && (
         <div className="space-y-2 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">
             Máximo ~3MB por canción (limitación del hosting gratuito): un mp3 corto o comprimido en baja calidad,
-            no el tema entero en alta calidad.
+            no el tema entero en alta calidad. Marcá una con la estrella para que sea el himno: intenta sonar
+            solo al entrar a un torneo.
           </p>
           <input
             value={title}
@@ -98,15 +105,32 @@ export function PlaylistPanel({ tracks }: { tracks: PlaylistTrack[] }) {
           {tracks.map((t) => (
             <li key={t.id} className="rounded-lg border border-border bg-surface p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium text-foreground">{t.title}</span>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-medium text-foreground">{t.title}</span>
+                  {t.isAnthem && (
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      <Star className="size-3 fill-current" />
+                      Himno
+                    </span>
+                  )}
+                </div>
                 {isAdmin && (
-                  <button
-                    onClick={() => handleDelete(t.id)}
-                    aria-label="Eliminar canción"
-                    className="shrink-0 text-muted hover:text-loss"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => handleSetAnthem(t.id, t.isAnthem)}
+                      aria-label={t.isAnthem ? "Quitar como himno" : "Marcar como himno"}
+                      className={cn("text-muted hover:text-primary", t.isAnthem && "text-primary")}
+                    >
+                      <Star className={cn("size-4", t.isAnthem && "fill-current")} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(t.id)}
+                      aria-label="Eliminar canción"
+                      className="text-muted hover:text-loss"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 )}
               </div>
               <audio controls preload="none" src={t.audioData} className="w-full" />

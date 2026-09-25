@@ -16,8 +16,9 @@ import { StageLineupModeSelector } from "@/components/admin/stage-lineup-mode-se
 import { PalmaresPanel } from "@/components/tournaments/palmares-panel";
 import { TopScorersPanel } from "@/components/tournaments/top-scorers-panel";
 import { PlaylistPanel } from "@/components/tournaments/playlist-panel";
+import { TournamentAnthemPlayer } from "@/components/tournaments/tournament-anthem-player";
 import { computeStandings, mergeStandings } from "@/lib/standings";
-import { getActiveTournamentState, getChampions, getTopScorers, getPlaylist } from "@/lib/data";
+import { getActiveTournamentState, getChampions, getTopScorers, getPlaylist, getAnthemTrack } from "@/lib/data";
 import type { Match } from "@/types/domain";
 
 const SPECIAL_TABS = ["reglas", "palmares", "goleadores", "playlist"] as const;
@@ -40,10 +41,11 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
   const { tournament, teams, stages, matchesByStage, stageParticipants } = state;
   const teamIds = teams.map((t) => t.id);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
-  const [champions, topScorers, playlist] = await Promise.all([
+  const [champions, topScorers, playlist, anthem] = await Promise.all([
     getChampions(),
     getTopScorers(teamIds),
     getPlaylist(),
+    getAnthemTrack(),
   ]);
 
   function adjustmentsForStage(stageId: string): Record<string, number> {
@@ -85,6 +87,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
+      {anthem && <TournamentAnthemPlayer audioData={anthem.audioData} />}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">

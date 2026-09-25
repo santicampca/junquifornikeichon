@@ -161,6 +161,8 @@ export interface PlaylistTrack {
   id: string;
   title: string;
   audioData: string;
+  /** A lo sumo una canción tiene esto en true: es la que suena sola al entrar a un torneo. */
+  isAnthem: boolean;
 }
 
 /**

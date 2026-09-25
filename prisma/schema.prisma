@@ -311,6 +311,10 @@ model PlaylistTrack {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   title     String
   audioData String
+  /// A lo sumo una canción puede ser el himno (ver setPlaylistAnthemAction
+  /// en src/lib/actions.ts, que se encarga de que solo una quede en true):
+  /// esa es la que intenta sonar sola al entrar a un torneo.
+  isAnthem  Boolean  @default(false)
   createdAt DateTime @default(now())
 }
 

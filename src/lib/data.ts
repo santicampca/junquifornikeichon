@@ -374,5 +374,11 @@ export const getChampionsForTeam = cache(async (teamSlug: string): Promise<Champ
 
 export const getPlaylist = cache(async (): Promise<PlaylistTrack[]> => {
   const rows = await prisma.playlistTrack.findMany({ orderBy: { createdAt: "asc" } });
-  return rows.map((r) => ({ id: r.id, title: r.title, audioData: r.audioData }));
+  return rows.map((r) => ({ id: r.id, title: r.title, audioData: r.audioData, isAnthem: r.isAnthem }));
+});
+
+/** La canción marcada como himno (si hay una): la que intenta sonar sola al entrar a un torneo. */
+export const getAnthemTrack = cache(async (): Promise<PlaylistTrack | null> => {
+  const row = await prisma.playlistTrack.findFirst({ where: { isAnthem: true } });
+  return row ? { id: row.id, title: row.title, audioData: row.audioData, isAnthem: row.isAnthem } : null;
 });

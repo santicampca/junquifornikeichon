@@ -1055,3 +1055,20 @@ export async function deletePlaylistTrackAction(adminName: string, id: string): 
     return fail(err instanceof Error ? err.message : "No se pudo eliminar la canción.");
   }
 }
+
+/**
+ * Marca (o desmarca, pasando `null`) qué canción es el himno: la que
+ * intenta sonar sola al entrar a un torneo. Como mucho una a la vez —
+ * desmarca cualquier otra antes de marcar la nueva.
+ */
+export async function setPlaylistAnthemAction(adminName: string, id: string | null): Promise<ActionResult> {
+  try {
+    assertAdmin(adminName);
+    await prisma.playlistTrack.updateMany({ where: { isAnthem: true }, data: { isAnthem: false } });
+    if (id) await prisma.playlistTrack.update({ where: { id }, data: { isAnthem: true } });
+    revalidatePath("/", "layout");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo marcar el himno.");
+  }
+}
