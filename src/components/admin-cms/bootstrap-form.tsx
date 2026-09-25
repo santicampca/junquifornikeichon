@@ -23,12 +23,11 @@ export function BootstrapForm() {
       return;
     }
     setSubmitting(true);
-    try {
-      await bootstrapAdminUserAction(username, password);
+    const result = await bootstrapAdminUserAction(username, password);
+    if (result.success) {
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la cuenta.");
-    } finally {
+    } else {
+      setError(result.message);
       setSubmitting(false);
     }
   }

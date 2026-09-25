@@ -22,11 +22,10 @@ export default async function AdminPage() {
       [phrases, photos] = await Promise.all([getNewsPhrasesForAdmin(), getNewsPhotosForAdmin()]);
     }
   } catch (err) {
-    // Capturado a propósito: sin esto, Next.js reemplaza cualquier error acá
-    // por un mensaje genérico redactado en producción ("Minified React error
-    // #441"), sin dar ninguna pista de qué falló. Mostrarlo directo en la
-    // página es temporal, solo para diagnosticar.
-    loadError = err instanceof Error ? `${err.name}: ${err.message}\n\n${err.stack ?? ""}` : String(err);
+    // Capturado a propósito: un error que cruza sin atajar desde acá pierde
+    // su mensaje real (Next.js lo reemplaza por uno genérico redactado en
+    // producción). Mostrarlo como texto normal evita esa redacción.
+    loadError = err instanceof Error ? err.message : String(err);
   }
 
   return (
@@ -42,9 +41,7 @@ export default async function AdminPage() {
       </div>
 
       {loadError ? (
-        <pre className="whitespace-pre-wrap rounded-xl border border-loss/40 bg-loss/10 p-4 text-xs text-loss">
-          {loadError}
-        </pre>
+        <p className="rounded-xl border border-loss/40 bg-loss/10 p-4 text-sm text-loss">{loadError}</p>
       ) : (
         <>
           {!bootstrapped && <BootstrapForm />}

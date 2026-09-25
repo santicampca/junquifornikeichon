@@ -18,12 +18,11 @@ export function AdminLoginPanelForm() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    try {
-      await loginAdminUserAction(username, password);
+    const result = await loginAdminUserAction(username, password);
+    if (result.success) {
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
-    } finally {
+    } else {
+      setError(result.message);
       setSubmitting(false);
     }
   }

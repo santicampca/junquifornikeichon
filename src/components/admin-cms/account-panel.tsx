@@ -27,17 +27,16 @@ export function AccountPanel({ username }: { username: string }) {
     setError(null);
     setOk(false);
     setSubmitting(true);
-    try {
-      await changeAdminPasswordAction(current, next);
+    const result = await changeAdminPasswordAction(current, next);
+    if (result.success) {
       setCurrent("");
       setNext("");
       setChangingPassword(false);
       setOk(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cambiar la contraseña.");
-    } finally {
-      setSubmitting(false);
+    } else {
+      setError(result.message);
     }
+    setSubmitting(false);
   }
 
   return (

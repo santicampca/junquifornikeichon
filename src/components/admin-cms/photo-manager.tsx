@@ -22,8 +22,12 @@ export function PhotoManager({ photos }: { photos: NewsPhoto[] }) {
     setUploading(true);
     try {
       const dataUrl = await compressImageFile(file);
-      await createNewsPhotoAction(dataUrl);
-      router.refresh();
+      const result = await createNewsPhotoAction(dataUrl);
+      if (result.success) {
+        router.refresh();
+      } else {
+        setError(result.message);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo subir la foto.");
     } finally {

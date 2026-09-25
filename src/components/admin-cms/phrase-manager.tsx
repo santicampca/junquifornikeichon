@@ -39,15 +39,14 @@ export function PhraseManager({ phrases }: { phrases: NewsPhrase[] }) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    try {
-      await createNewsPhraseAction(category, template);
+    const result = await createNewsPhraseAction(category, template);
+    if (result.success) {
       setTemplate("");
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la frase.");
-    } finally {
-      setSubmitting(false);
+    } else {
+      setError(result.message);
     }
+    setSubmitting(false);
   }
 
   async function handleDelete(id: string) {
