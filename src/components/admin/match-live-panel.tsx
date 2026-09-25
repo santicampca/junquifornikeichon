@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImagePlus, PlayCircle, ShieldAlert } from "lucide-react";
-import { useAdmin } from "@/lib/app-store";
+import { useAdmin, useTeamAuth } from "@/lib/app-store";
 import {
   finishMatchAction,
   markForfeitAction,
@@ -54,6 +54,8 @@ function CounterInput({
  * Acta en vivo: marcador + tarjetas editables, comprobante de foto y cierre
  * del partido. "Cerrar partido" exige comprobante ya subido; para un
  * partido no jugado (incomparecencia) está el forfeit aparte, que no lo pide.
+ * No es admin-only: cualquiera de los dos equipos que juegan este partido
+ * también puede cargarlo (mismo criterio que la plantilla de jugadores).
  */
 export function MatchLivePanel({
   match,
@@ -69,6 +71,7 @@ export function MatchLivePanel({
 }) {
   const router = useRouter();
   const { isAdmin, adminName } = useAdmin();
+  const { session } = useTeamAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<MatchLiveInput>({
@@ -90,8 +93,10 @@ export function MatchLivePanel({
   const [forfeitLoserScore, setForfeitLoserScore] = useState(0);
 
   const isClosed = CLOSED_STATUSES.includes(match.status);
+  const canEdit = isAdmin || session?.teamId === match.homeTeamId || session?.teamId === match.awayTeamId;
+  const callerTeamId = session?.teamId ?? null;
 
-  if (!isAdmin || !adminName) return null;
+  if (!canEdit) return null;
   if (isClosed) return null;
 
   function patch(field: keyof MatchLiveInput, value: number) {
@@ -103,7 +108,7 @@ export function MatchLivePanel({
     setSubmitting("save");
     setError(null);
     try {
-      await updateMatchLiveAction(adminName!, match.id, form);
+      await updateMatchLiveAction(adminName, callerTeamId, match.id, form);
       setSaved(true);
       router.refresh();
       setTimeout(() => setSaved(false), 2500);
@@ -119,7 +124,7 @@ export function MatchLivePanel({
     setSubmitting("finish");
     setError(null);
     try {
-      await finishMatchAction(adminName!, match.id, form);
+      await finishMatchAction(adminName, callerTeamId, match.id, form);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cerrar el partido.");
@@ -135,7 +140,7 @@ export function MatchLivePanel({
     setError(null);
     try {
       const dataUrl = await compressImageFile(file);
-      await uploadMatchProofAction(adminName!, match.id, dataUrl);
+      await uploadMatchProofAction(adminName, callerTeamId, match.id, dataUrl);
       setProofPreview(dataUrl);
       router.refresh();
     } catch (err) {
@@ -153,7 +158,7 @@ export function MatchLivePanel({
     setSubmitting("forfeit");
     setError(null);
     try {
-      await markForfeitAction(adminName!, match.id, winnerTeamId, forfeitWinnerScore, forfeitLoserScore);
+      await markForfeitAction(adminName, callerTeamId, match.id, winnerTeamId, forfeitWinnerScore, forfeitLoserScore);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo marcar el forfeit.");

@@ -464,20 +464,39 @@ function assertValidMatchLiveInput(input: MatchLiveInput) {
 }
 
 /**
+ * El acta/comprobante/cierre de un partido ya no es admin-only: lo puede
+ * cargar cualquiera de los dos equipos que juegan ese partido (mismo
+ * criterio que `createPlayerAction` para la plantilla), además del admin.
+ * `callerTeamId` es el equipo logueado en el navegador (ver useTeamAuth en
+ * src/lib/app-store.tsx); null si quien llama no tiene sesión de equipo.
+ */
+function assertCanEditMatch(
+  adminName: string | null,
+  callerTeamId: string | null,
+  match: { homeTeamId: string; awayTeamId: string },
+) {
+  const expected = process.env.SITE_ADMIN_KEY;
+  if (expected && adminName === expected) return;
+  if (callerTeamId && (callerTeamId === match.homeTeamId || callerTeamId === match.awayTeamId)) return;
+  throw new Error("Solo el admin o alguno de los dos equipos de este partido puede hacer esto.");
+}
+
+/**
  * Actualiza el marcador y las tarjetas de un partido "en caliente". Si el
  * partido todavía estaba SCHEDULED, lo pasa a LIVE (primer toque del acta).
  * No cierra el partido: para eso está `finishMatchAction`.
  */
 export async function updateMatchLiveAction(
-  adminName: string,
+  adminName: string | null,
+  callerTeamId: string | null,
   matchId: string,
   input: MatchLiveInput,
 ): Promise<void> {
-  assertAdmin(adminName);
   assertValidMatchLiveInput(input);
 
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) throw new Error("El partido no existe.");
+  assertCanEditMatch(adminName, callerTeamId, match);
   if (match.status === "PLAYED" || match.status === "CANCELLED") {
     throw new Error("Este partido ya está cerrado; reabrilo antes de editarlo.");
   }
@@ -503,14 +522,22 @@ const MAX_PROOF_DATA_URL_LENGTH = 6_000_000;
  * partido por sí sola: eso lo hace `finishMatchAction`, que exige que ya
  * haya un comprobante cargado.
  */
-export async function uploadMatchProofAction(adminName: string, matchId: string, proofImageData: string): Promise<void> {
-  assertAdmin(adminName);
+export async function uploadMatchProofAction(
+  adminName: string | null,
+  callerTeamId: string | null,
+  matchId: string,
+  proofImageData: string,
+): Promise<void> {
   if (!proofImageData.startsWith("data:image/")) {
     throw new Error("El comprobante tiene que ser una imagen.");
   }
   if (proofImageData.length > MAX_PROOF_DATA_URL_LENGTH) {
     throw new Error("La imagen es muy pesada; probá con una más chica.");
   }
+
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match) throw new Error("El partido no existe.");
+  assertCanEditMatch(adminName, callerTeamId, match);
 
   await prisma.match.update({ where: { id: matchId }, data: { proofImageData } });
   revalidatePath("/", "layout");
@@ -596,12 +623,17 @@ async function assignMatchGoals(matchId: string, teamId: string, goalCount: numb
  * realidad una corrección de un resultado ya cargado) y se sortea de nuevo
  * con el marcador final.
  */
-export async function finishMatchAction(adminName: string, matchId: string, input: MatchLiveInput): Promise<void> {
-  assertAdmin(adminName);
+export async function finishMatchAction(
+  adminName: string | null,
+  callerTeamId: string | null,
+  matchId: string,
+  input: MatchLiveInput,
+): Promise<void> {
   assertValidMatchLiveInput(input);
 
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) throw new Error("El partido no existe.");
+  assertCanEditMatch(adminName, callerTeamId, match);
   if (match.status === "CANCELLED") {
     throw new Error("Un partido cancelado no se puede cerrar como jugado.");
   }
@@ -628,19 +660,20 @@ export async function finishMatchAction(adminName: string, matchId: string, inpu
  * tabla igual que un partido jugado (WALKOVER ya lo hace `computeStandings`).
  */
 export async function markForfeitAction(
-  adminName: string,
+  adminName: string | null,
+  callerTeamId: string | null,
   matchId: string,
   winnerTeamId: string,
   winnerScore = 3,
   loserScore = 0,
 ): Promise<void> {
-  assertAdmin(adminName);
   if (!Number.isInteger(winnerScore) || !Number.isInteger(loserScore) || winnerScore < 0 || loserScore < 0) {
     throw new Error("El marcador del forfeit debe ser un número entero no negativo.");
   }
 
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) throw new Error("El partido no existe.");
+  assertCanEditMatch(adminName, callerTeamId, match);
   if (match.status === "PLAYED") throw new Error("Este partido ya está cerrado como jugado.");
   if (winnerTeamId !== match.homeTeamId && winnerTeamId !== match.awayTeamId) {
     throw new Error("El equipo ganador tiene que ser uno de los dos que juegan este partido.");
