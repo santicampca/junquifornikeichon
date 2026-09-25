@@ -35,7 +35,7 @@ const TEAMS: { name: string; managerName: string; primaryColor: string; allowedD
   { name: "Te parto el Culo Efe c", managerName: "Angel", primaryColor: "#f97316" },
   { name: "©aªlVos Fc", managerName: "Luis", primaryColor: "#8b5cf6" },
   { name: "Alianza lima", managerName: "Javier", primaryColor: "#22c55e", allowedDays: ["THURSDAY", "SUNDAY"] },
-  { name: "ak memeten la 47", managerName: "Henry", primaryColor: "#84cc16" },
+  { name: "AK te meto la 47", managerName: "Henry", primaryColor: "#84cc16" },
 ];
 
 async function main() {
