@@ -110,6 +110,16 @@ const DAY_INDEX: Record<DayOfWeek, number> = {
   SATURDAY: 6,
 };
 
+const DAY_BY_INDEX: DayOfWeek[] = [
+  "SUNDAY",
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+];
+
 /** Días desde `anchorDay` hasta `day`, siempre en [0, 6]. */
 function offsetFromAnchor(anchorDay: DayOfWeek, day: DayOfWeek): number {
   return (DAY_INDEX[day] - DAY_INDEX[anchorDay] + 7) % 7;
@@ -156,7 +166,11 @@ export function scheduleMatchdays(
     availability = [],
     weeksBetweenMatchdays = 1,
   }: {
-    /** Debe caer en el mismo día de la semana que `weeklySlots[0].day`. */
+    /**
+     * Fecha exacta en la que arranca la Jornada 1 (en UTC). El día de la
+     * semana de esta fecha es el ancla de todas las ventanas de jornada: no
+     * hace falta que coincida con ningún día de `weeklySlots` en particular.
+     */
     seasonStart: Date;
     weeklySlots: WeeklySlot[];
     availability?: TeamAvailability[];
@@ -173,7 +187,12 @@ export function scheduleMatchdays(
     if (a.allowedDays.length > 0) allowedByTeam.set(a.teamId, new Set(a.allowedDays));
   }
 
-  const anchorDay = weeklySlots[0].day;
+  // El ancla es el día de la semana real de `seasonStart` (en UTC, para no
+  // depender de la zona horaria del server) — no el primer día de
+  // `weeklySlots`, que podía no tener nada que ver con la fecha elegida y
+  // corría el inicio del torneo varios días para adelante sin que nadie lo
+  // pidiera.
+  const anchorDay = DAY_BY_INDEX[seasonStart.getUTCDay()];
   const windowLengthDays = 7 * weeksBetweenMatchdays;
 
   const byRound = new Map<number, GeneratedMatch[]>();
@@ -190,7 +209,7 @@ export function scheduleMatchdays(
   for (const [round, roundMatches] of [...byRound.entries()].sort((a, b) => a[0] - b[0])) {
     const roundScheduled: ScheduledMatch[] = [];
     const windowStart = new Date(seasonStart);
-    windowStart.setDate(windowStart.getDate() + (round - 1) * windowLengthDays);
+    windowStart.setUTCDate(windowStart.getUTCDate() + (round - 1) * windowLengthDays);
 
     const remainingCapacity = new Map<DayOfWeek, number>(
       weeklySlots.map((slot) => [slot.day, slot.matchesPerDay]),
@@ -242,7 +261,7 @@ export function scheduleMatchdays(
       remainingCapacity.set(bestDay, bestCapacity - 1);
 
       const scheduledAt = new Date(windowStart);
-      scheduledAt.setDate(scheduledAt.getDate() + offsetFromAnchor(anchorDay, bestDay));
+      scheduledAt.setUTCDate(scheduledAt.getUTCDate() + offsetFromAnchor(anchorDay, bestDay));
 
       roundScheduled.push({ ...match, dayOfWeek: bestDay, scheduledAt, isMandatorySundayMatch: false });
     }

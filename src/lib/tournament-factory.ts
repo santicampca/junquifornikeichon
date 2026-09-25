@@ -9,24 +9,6 @@ import type {
   TournamentState,
 } from "@/types/domain";
 
-const DAY_INDEX: Record<DayOfWeek, number> = {
-  SUNDAY: 0,
-  MONDAY: 1,
-  TUESDAY: 2,
-  WEDNESDAY: 3,
-  THURSDAY: 4,
-  FRIDAY: 5,
-  SATURDAY: 6,
-};
-
-/** Adelanta `date` hasta la próxima ocurrencia (inclusive) de `day`. */
-function alignToWeekday(date: Date, day: DayOfWeek): Date {
-  const result = new Date(date);
-  const diff = (DAY_INDEX[day] - result.getDay() + 7) % 7;
-  result.setDate(result.getDate() + diff);
-  return result;
-}
-
 export interface NewTeamInput {
   name: string;
   managerName: string;
@@ -41,16 +23,22 @@ export interface CreateTournamentInput {
   teams: NewTeamInput[];
   doubleRound: boolean;
   weeklySlots: WeeklySlot[];
-  /** Fecha (yyyy-mm-dd) desde la que arranca el Apertura; se ajusta al próximo día válido de `weeklySlots`. */
+  /**
+   * Fecha exacta (yyyy-mm-dd) en la que arranca el Apertura: la Jornada 1
+   * cae ese mismo día si su día de semana está habilitado en `weeklySlots`,
+   * o en el primer día habilitado de esa misma semana si no. Nunca se corre
+   * a la semana siguiente.
+   */
   seasonStart: string;
   /** Semanas de receso entre el fin del Apertura y el inicio del Clausura. */
   breakWeeksBetweenStages?: number;
   includeSupercopa?: boolean;
   /**
    * Agrega una fase de Playoffs (DRAFT, sin partidos): eliminación directa
-   * top-4 sobre la Tabla General, que el admin genera a mano una vez
-   * terminada la liga (ver generatePlayoffsAction/generatePlayoffsFinalAction
-   * en src/lib/actions.ts) porque los rivales dependen de la tabla final.
+   * top-8 sobre la Tabla General, que el admin genera a mano una vez
+   * terminada la liga (ver generatePlayoffsAction/generatePlayoffsSemifinalsAction/
+   * generatePlayoffsFinalAction en src/lib/actions.ts) porque los rivales
+   * dependen de la tabla final.
    */
   includePlayoffs?: boolean;
 }
@@ -162,13 +150,16 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
   const points = { win: 3, draw: 1, loss: 0 };
   const format = input.doubleRound ? "ROUND_ROBIN_DOUBLE" : "ROUND_ROBIN_SINGLE";
 
-  const aperturaStart = alignToWeekday(new Date(input.seasonStart), input.weeklySlots[0].day);
+  // Arranca exactamente el día que se eligió: scheduleMatchdays ancla la
+  // Jornada 1 al día de semana real de esta fecha (ver fixtures.ts), no al
+  // primer día de `weeklySlots`.
+  const aperturaStart = new Date(input.seasonStart);
   const aperturaId = generateId("stage");
   const apertura = buildStageFixture(aperturaId, "Apertura", teamIds, input, teamAvailability, aperturaStart);
 
   const breakWeeks = input.breakWeeksBetweenStages ?? 3;
   const clausuraStart = new Date(aperturaStart);
-  clausuraStart.setDate(clausuraStart.getDate() + (apertura.roundsCount - 1) * 7 + breakWeeks * 7);
+  clausuraStart.setUTCDate(clausuraStart.getUTCDate() + (apertura.roundsCount - 1) * 7 + breakWeeks * 7);
   const clausuraId = generateId("stage");
   const clausura = buildStageFixture(clausuraId, "Clausura", teamIds, input, teamAvailability, clausuraStart);
 

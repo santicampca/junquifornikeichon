@@ -58,7 +58,11 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
             include: {
               aggregatesFrom: true,
               participants: true,
-              matches: { select: MATCH_SELECT_WITHOUT_PROOF },
+              // orderBy explícito: Mongo no garantiza orden de inserción en
+              // la lectura, así que sin esto los partidos de una misma
+              // jornada podían aparecer desordenados (ej: el del 8/oct antes
+              // que el del 5/oct).
+              matches: { select: MATCH_SELECT_WITHOUT_PROOF, orderBy: { scheduledAt: "asc" } },
             },
           },
         },

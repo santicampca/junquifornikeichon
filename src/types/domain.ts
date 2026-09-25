@@ -88,6 +88,15 @@ export interface StageParticipant {
   pointsAdjustment: number;
 }
 
+/** Posiciones válidas de jugador; ver MAX_ROSTER_SIZE/MAX_PLAYERS_PER_POSITION. */
+export const PLAYER_POSITIONS = ["Portero", "Defensa", "Mediocampista", "Delantero"] as const;
+export type PlayerPosition = (typeof PLAYER_POSITIONS)[number];
+
+/** Tamaño de plantel por equipo: entre 5 y 8 jugadores, máximo 2 por posición. */
+export const MIN_ROSTER_SIZE = 5;
+export const MAX_ROSTER_SIZE = 8;
+export const MAX_PLAYERS_PER_POSITION = 2;
+
 export interface Player {
   id: string;
   teamId: string;

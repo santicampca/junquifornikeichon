@@ -267,7 +267,7 @@ export function CreateTournamentDialog({
                     checked={includePlayoffs}
                     onChange={(e) => setIncludePlayoffs(e.target.checked)}
                   />
-                  Incluir Playoffs (top 4)
+                  Incluir Playoffs (top 8)
                 </label>
               </div>
             </div>

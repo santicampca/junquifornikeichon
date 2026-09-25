@@ -4,8 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Swords } from "lucide-react";
 import { useAdmin } from "@/lib/app-store";
-import { generatePlayoffsAction, generatePlayoffsFinalAction } from "@/lib/actions";
+import { generatePlayoffsAction, generatePlayoffsSemifinalsAction, generatePlayoffsFinalAction } from "@/lib/actions";
 import type { Match } from "@/types/domain";
+
+const MODE_LABEL = {
+  quarters: "Generar Cuartos de Final (top 8)",
+  semis: "Generar semifinales",
+  final: "Generar la final",
+} as const;
 
 export function GeneratePlayoffsButton({ stageId, matches }: { stageId: string; matches: Match[] }) {
   const router = useRouter();
@@ -15,13 +21,16 @@ export function GeneratePlayoffsButton({ stageId, matches }: { stageId: string; 
 
   if (!isAdmin || !adminName) return null;
 
+  const quarterfinals = matches.filter((m) => m.round === "Cuartos de Final");
   const semifinals = matches.filter((m) => m.round === "Semifinal");
   const hasFinal = matches.some((m) => m.round === "Final");
-  const semifinalsClosed =
-    semifinals.length === 2 && semifinals.every((m) => m.status === "PLAYED" || m.status === "WALKOVER");
+  const isClosed = (m: Match) => m.status === "PLAYED" || m.status === "WALKOVER";
+  const quarterfinalsClosed = quarterfinals.length === 4 && quarterfinals.every(isClosed);
+  const semifinalsClosed = semifinals.length === 2 && semifinals.every(isClosed);
 
-  let mode: "semis" | "final" | null = null;
-  if (matches.length === 0) mode = "semis";
+  let mode: keyof typeof MODE_LABEL | null = null;
+  if (matches.length === 0) mode = "quarters";
+  else if (quarterfinalsClosed && semifinals.length === 0) mode = "semis";
   else if (semifinalsClosed && !hasFinal) mode = "final";
 
   if (!mode) return null;
@@ -30,7 +39,8 @@ export function GeneratePlayoffsButton({ stageId, matches }: { stageId: string; 
     setSubmitting(true);
     setError(null);
     try {
-      if (mode === "semis") await generatePlayoffsAction(adminName!, stageId);
+      if (mode === "quarters") await generatePlayoffsAction(adminName!, stageId);
+      else if (mode === "semis") await generatePlayoffsSemifinalsAction(adminName!, stageId);
       else await generatePlayoffsFinalAction(adminName!, stageId);
       router.refresh();
     } catch (err) {
@@ -48,7 +58,7 @@ export function GeneratePlayoffsButton({ stageId, matches }: { stageId: string; 
         className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
       >
         <Swords className="size-4" />
-        {submitting ? "Generando…" : mode === "semis" ? "Generar semifinales (top 4)" : "Generar la final"}
+        {submitting ? "Generando…" : MODE_LABEL[mode]}
       </button>
       {error && <p className="text-xs text-loss">{error}</p>}
     </div>

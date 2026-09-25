@@ -61,7 +61,7 @@ enum StageType {
   CLAUSURA
   SUPERCOPA
   GENERAL // Tabla acumulada/general (suma de otras fases)
-  PLAYOFFS // Eliminación directa top-4 sobre la Tabla General, generada a mano por el admin
+  PLAYOFFS // Eliminación directa top-8 sobre la Tabla General, generada a mano por el admin
   OTRO
 }
 

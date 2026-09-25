@@ -7,6 +7,7 @@ import { getActiveTournamentState } from "@/lib/data";
 import { persistTournamentState } from "@/lib/persist-tournament";
 import { createTournamentState, type CreateTournamentInput, type CreateTournamentConflict } from "@/lib/tournament-factory";
 import { computeStandings, mergeStandings } from "@/lib/standings";
+import { MAX_ROSTER_SIZE, MAX_PLAYERS_PER_POSITION, PLAYER_POSITIONS, type TournamentState } from "@/types/domain";
 
 // Misma lista que src/lib/app-store.tsx: una traba de conveniencia, no
 // autenticación real. Se valida acá también (no solo en el cliente) porque
@@ -228,11 +229,37 @@ function assertValidPlayerInput(input: PlayerInput) {
   if (input.number !== undefined && (!Number.isInteger(input.number) || input.number < 0 || input.number > 99)) {
     throw new Error("El dorsal debe ser un número entero entre 0 y 99.");
   }
+  if (input.position && !(PLAYER_POSITIONS as readonly string[]).includes(input.position)) {
+    throw new Error("Posición inválida.");
+  }
+}
+
+/**
+ * Tope de plantel (MAX_ROSTER_SIZE) y de jugadores por posición
+ * (MAX_PLAYERS_PER_POSITION, ver src/types/domain.ts): 2 porteros, 2
+ * defensas, 2 mediocampistas, 2 delanteros como máximo. `excludePlayerId` se
+ * usa al editar, para no contarse a sí mismo contra el tope.
+ */
+async function assertRosterCapacity(teamId: string, position: string | undefined, excludePlayerId?: string): Promise<void> {
+  const teammates = await prisma.player.findMany({
+    where: { teamId, ...(excludePlayerId ? { id: { not: excludePlayerId } } : {}) },
+  });
+
+  if (!excludePlayerId && teammates.length >= MAX_ROSTER_SIZE) {
+    throw new Error(`El plantel ya tiene el máximo de ${MAX_ROSTER_SIZE} jugadores.`);
+  }
+  if (position) {
+    const sameCount = teammates.filter((p) => p.position === position).length;
+    if (sameCount >= MAX_PLAYERS_PER_POSITION) {
+      throw new Error(`Ya hay ${MAX_PLAYERS_PER_POSITION} jugadores anotados como ${position}.`);
+    }
+  }
 }
 
 export async function createPlayerAction(adminName: string, teamId: string, input: PlayerInput): Promise<void> {
   assertAdmin(adminName);
   assertValidPlayerInput(input);
+  await assertRosterCapacity(teamId, input.position?.trim() || undefined);
 
   await prisma.player.create({
     data: {
@@ -249,6 +276,10 @@ export async function createPlayerAction(adminName: string, teamId: string, inpu
 export async function updatePlayerAction(adminName: string, playerId: string, input: PlayerInput): Promise<void> {
   assertAdmin(adminName);
   assertValidPlayerInput(input);
+
+  const existing = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!existing) throw new Error("Jugador no encontrado.");
+  await assertRosterCapacity(existing.teamId, input.position?.trim() || undefined, playerId);
 
   await prisma.player.update({
     where: { id: playerId },
@@ -481,14 +512,54 @@ export async function rescheduleMatchAction(
 }
 
 // ============================================================
-// PLAYOFFS (top-4 eliminación directa sobre la Tabla General)
+// PLAYOFFS (top-8 eliminación directa sobre la Tabla General:
+// Cuartos de Final -> Semifinal -> Final)
 // ============================================================
 
+/** Tabla General actual (misma lógica que usa la página del torneo). */
+function generalStandingsRows(state: TournamentState) {
+  const generalStage = state.stages.find((s) => s.type === "GENERAL");
+  const teamIds = state.teams.map((t) => t.id);
+  const adjustmentsForStage = (stageId: string) =>
+    Object.fromEntries(
+      state.stageParticipants.filter((p) => p.stageId === stageId).map((p) => [p.teamId, p.pointsAdjustment]),
+    );
+
+  return generalStage
+    ? mergeStandings(
+        (generalStage.aggregatesFrom ?? []).map((childId) => {
+          const child = state.stages.find((s) => s.id === childId);
+          return computeStandings(teamIds, state.matchesByStage[childId] ?? [], child?.points, 5, adjustmentsForStage(childId));
+        }),
+      )
+    : computeStandings(teamIds, Object.values(state.matchesByStage).flat());
+}
+
+/** Siembra estándar de bracket de 8: evita que el 1° y el 2° se crucen antes de la final. */
+function quarterfinalPairs(rows: { teamId: string }[]): [string, string][] {
+  const [s1, s2, s3, s4, s5, s6, s7, s8] = rows.map((r) => r.teamId);
+  return [
+    [s1, s8],
+    [s4, s5],
+    [s2, s7],
+    [s3, s6],
+  ];
+}
+
+function resolveWinner(match: { homeTeamId: string; awayTeamId: string; homeScore: number | null; awayScore: number | null }): string {
+  const home = match.homeScore ?? 0;
+  const away = match.awayScore ?? 0;
+  if (home === away) {
+    throw new Error("Un partido de playoffs quedó empatado; corregí el resultado antes de avanzar de ronda.");
+  }
+  return home > away ? match.homeTeamId : match.awayTeamId;
+}
+
 /**
- * Genera las semifinales de la fase Playoffs a partir de la Tabla General
- * actual (1° vs 4°, 2° vs 3°). Se genera a mano (no al crear el torneo)
- * porque los rivales dependen de cómo termine la liga. Solo funciona si la
- * fase todavía no tiene partidos generados.
+ * Genera los Cuartos de Final de la fase Playoffs a partir de la Tabla
+ * General actual (1° vs 8°, 4° vs 5°, 2° vs 7°, 3° vs 6°). Se genera a mano
+ * (no al crear el torneo) porque los rivales dependen de cómo termine la
+ * liga. Solo funciona si la fase todavía no tiene partidos generados.
  */
 export async function generatePlayoffsAction(adminName: string, stageId: string): Promise<void> {
   assertAdmin(adminName);
@@ -502,44 +573,74 @@ export async function generatePlayoffsAction(adminName: string, stageId: string)
   const existing = await prisma.match.count({ where: { stageId } });
   if (existing > 0) throw new Error("Esta fase ya tiene partidos generados.");
 
-  const generalStage = state.stages.find((s) => s.type === "GENERAL");
-  const teamIds = state.teams.map((t) => t.id);
-  const rows = generalStage
-    ? mergeStandings(
-        (generalStage.aggregatesFrom ?? []).map((childId) => {
-          const child = state.stages.find((s) => s.id === childId);
-          return computeStandings(teamIds, state.matchesByStage[childId] ?? [], child?.points);
-        }),
-      )
-    : computeStandings(teamIds, Object.values(state.matchesByStage).flat());
+  const rows = generalStandingsRows(state);
+  if (rows.length < 8) throw new Error("Hacen falta al menos 8 equipos en la tabla para generar playoffs.");
 
-  if (rows.length < 4) throw new Error("Hacen falta al menos 4 equipos en la tabla para generar playoffs.");
+  const now = new Date();
+  await prisma.match.createMany({
+    data: quarterfinalPairs(rows).map(([homeTeamId, awayTeamId]) => ({
+      stageId,
+      homeTeamId,
+      awayTeamId,
+      round: "Cuartos de Final",
+      status: "SCHEDULED",
+      scheduledAt: now,
+    })),
+  });
 
-  const [first, second, third, fourth] = rows;
+  await prisma.competitionStage.update({ where: { id: stageId }, data: { status: "SCHEDULED" } });
+
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Genera las semifinales una vez que los 4 Cuartos de Final están cerrados.
+ * Reconstruye qué partido guardado corresponde a cada cruce de la siembra
+ * (1v8, 4v5, 2v7, 3v6) comparando equipos en vez de depender del orden de
+ * inserción en Mongo (no garantizado), y arma: ganador(1v8) vs ganador(4v5),
+ * ganador(2v7) vs ganador(3v6) — así el 1° y el 2° sembrados no se cruzan
+ * antes de la final.
+ */
+export async function generatePlayoffsSemifinalsAction(adminName: string, stageId: string): Promise<void> {
+  assertAdmin(adminName);
+
+  const state = await getActiveTournamentState();
+  if (!state) throw new Error("No hay torneo activo.");
+
+  const stage = state.stages.find((s) => s.id === stageId);
+  if (!stage || stage.type !== "PLAYOFFS") throw new Error("Esa fase no es de Playoffs.");
+
+  const quarterfinals = await prisma.match.findMany({ where: { stageId, round: "Cuartos de Final" } });
+  if (quarterfinals.length !== 4) throw new Error("Todavía no se generaron los cuatro Cuartos de Final.");
+
+  const unfinished = quarterfinals.filter((m) => m.status !== "PLAYED" && m.status !== "WALKOVER");
+  if (unfinished.length > 0) throw new Error("Faltan cerrar resultados de Cuartos de Final.");
+
+  const alreadyHasSemis = await prisma.match.count({ where: { stageId, round: "Semifinal" } });
+  if (alreadyHasSemis > 0) throw new Error("Las semifinales ya están generadas.");
+
+  const rows = generalStandingsRows(state);
+  if (rows.length < 8) throw new Error("Hacen falta al menos 8 equipos en la tabla para generar playoffs.");
+
+  const pairs = quarterfinalPairs(rows);
+  const findMatch = (pair: [string, string]) => {
+    const pairSet = new Set(pair);
+    const match = quarterfinals.find(
+      (m) => pairSet.has(m.homeTeamId) && pairSet.has(m.awayTeamId) && m.homeTeamId !== m.awayTeamId,
+    );
+    if (!match) throw new Error("No se pudo reconstruir el cruce de Cuartos de Final; revisá los resultados cargados.");
+    return match;
+  };
+
+  const winners = pairs.map((pair) => resolveWinner(findMatch(pair)));
   const now = new Date();
 
   await prisma.match.createMany({
     data: [
-      {
-        stageId,
-        homeTeamId: first.teamId,
-        awayTeamId: fourth.teamId,
-        round: "Semifinal",
-        status: "SCHEDULED",
-        scheduledAt: now,
-      },
-      {
-        stageId,
-        homeTeamId: second.teamId,
-        awayTeamId: third.teamId,
-        round: "Semifinal",
-        status: "SCHEDULED",
-        scheduledAt: now,
-      },
+      { stageId, homeTeamId: winners[0], awayTeamId: winners[1], round: "Semifinal", status: "SCHEDULED", scheduledAt: now },
+      { stageId, homeTeamId: winners[2], awayTeamId: winners[3], round: "Semifinal", status: "SCHEDULED", scheduledAt: now },
     ],
   });
-
-  await prisma.competitionStage.update({ where: { id: stageId }, data: { status: "SCHEDULED" } });
 
   revalidatePath("/", "layout");
 }
@@ -561,12 +662,7 @@ export async function generatePlayoffsFinalAction(adminName: string, stageId: st
   const alreadyHasFinal = await prisma.match.count({ where: { stageId, round: "Final" } });
   if (alreadyHasFinal > 0) throw new Error("La final ya está generada.");
 
-  const winners = semifinals.map((m) => {
-    const home = m.homeScore ?? 0;
-    const away = m.awayScore ?? 0;
-    if (home === away) throw new Error("Una semifinal quedó empatada; corregí el resultado antes de generar la final.");
-    return home > away ? m.homeTeamId : m.awayTeamId;
-  });
+  const winners = semifinals.map((m) => resolveWinner(m));
 
   await prisma.match.create({
     data: {

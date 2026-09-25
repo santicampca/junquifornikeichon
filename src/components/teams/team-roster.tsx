@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useAdmin } from "@/lib/app-store";
 import { createPlayerAction, deletePlayerAction, updatePlayerAction } from "@/lib/actions";
-import type { Player } from "@/types/domain";
+import { MAX_PLAYERS_PER_POSITION, MAX_ROSTER_SIZE, PLAYER_POSITIONS, type Player } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
 const inputClass =
@@ -35,6 +35,17 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
   const [editForm, setEditForm] = useState<PlayerFormState>(emptyForm());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const rosterFull = players.length >= MAX_ROSTER_SIZE;
+
+  function positionCounts(excludePlayerId?: string) {
+    const counts: Partial<Record<string, number>> = {};
+    for (const p of players) {
+      if (p.id === excludePlayerId || !p.position) continue;
+      counts[p.position] = (counts[p.position] ?? 0) + 1;
+    }
+    return counts;
+  }
 
   function parseInput(form: PlayerFormState) {
     return {
@@ -119,12 +130,22 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                   placeholder="Nombre"
                   className={cn(inputClass, "min-w-0 flex-1")}
                 />
-                <input
+                <select
                   value={editForm.position}
                   onChange={(e) => setEditForm((f) => ({ ...f, position: e.target.value }))}
-                  placeholder="Posición"
-                  className={cn(inputClass, "w-32 shrink-0")}
-                />
+                  className={cn(inputClass, "w-36 shrink-0")}
+                >
+                  <option value="">Posición</option>
+                  {PLAYER_POSITIONS.map((pos) => {
+                    const counts = positionCounts(editingId ?? undefined);
+                    const full = (counts[pos] ?? 0) >= MAX_PLAYERS_PER_POSITION && pos !== editForm.position;
+                    return (
+                      <option key={pos} value={pos} disabled={full}>
+                        {pos}
+                      </option>
+                    );
+                  })}
+                </select>
                 <button
                   type="submit"
                   disabled={submitting}
@@ -186,6 +207,7 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
       {error && <p className="text-xs text-loss">{error}</p>}
 
       {isAdmin &&
+        (!rosterFull || adding) &&
         (adding ? (
           <form
             onSubmit={handleAdd}
@@ -205,15 +227,21 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
               autoFocus
               className={cn(inputClass, "min-w-0 flex-1")}
             />
-            <input
+            <select
               value={addForm.position}
               onChange={(e) => setAddForm((f) => ({ ...f, position: e.target.value }))}
-              placeholder="Posición"
-              className={cn(inputClass, "w-32 shrink-0")}
-            />
+              className={cn(inputClass, "w-36 shrink-0")}
+            >
+              <option value="">Posición</option>
+              {PLAYER_POSITIONS.map((pos) => (
+                <option key={pos} value={pos} disabled={(positionCounts()[pos] ?? 0) >= MAX_PLAYERS_PER_POSITION}>
+                  {pos}
+                </option>
+              ))}
+            </select>
             <button
               type="submit"
-              disabled={submitting || !addForm.name.trim()}
+              disabled={submitting || !addForm.name.trim() || rosterFull}
               className="rounded-md bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
             >
               Agregar
