@@ -61,6 +61,22 @@ function fillTemplate(template: string, vars: Record<string, string | number>): 
   return template.replace(/\{(\w+)\}/g, (raw, key: string) => (key in vars ? String(vars[key]) : raw));
 }
 
+/**
+ * Los partidos juegan "a 3": el que gana llega justo a 3 goles, así que el
+ * marcador del perdedor define solo el margen: 3-0 goleada, 3-1 cómoda,
+ * 3-2 ajustada. Si el marcador no encaja con ese formato (un torneo con
+ * otras reglas, un resultado atípico cargado a mano), cae a la misma
+ * heurística por margen de gol de siempre.
+ */
+function classifyMarginCategory(winnerScore: number, loserScore: number): NewsCategory {
+  if (winnerScore === 3 && loserScore === 0) return "BLOWOUT";
+  if (winnerScore === 3 && loserScore === 1) return "COMFORTABLE";
+  if (winnerScore === 3 && loserScore === 2) return "NARROW";
+
+  const margin = winnerScore - loserScore;
+  return margin >= 3 ? "BLOWOUT" : margin === 2 ? "COMFORTABLE" : "NARROW";
+}
+
 export interface NewsPhraseEntry {
   id: string;
   template: string;
@@ -121,8 +137,7 @@ export function buildMatchHeadline(
 
   const [winner, loser, winnerScore, loserScore] =
     home > away ? [homeTeam.name, awayTeam.name, home, away] : [awayTeam.name, homeTeam.name, away, home];
-  const margin = winnerScore - loserScore;
-  const category: NewsCategory = margin >= 3 ? "BLOWOUT" : margin === 2 ? "COMFORTABLE" : "NARROW";
+  const category = classifyMarginCategory(winnerScore, loserScore);
   const phrase = pick(poolFor(category), seed);
 
   return {
