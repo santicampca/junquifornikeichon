@@ -88,7 +88,19 @@ export function CreateTournamentDialog({
   const [includePlayoffs, setIncludePlayoffs] = useState(false);
   const [seasonStart, setSeasonStart] = useState(defaultSeasonStart);
   const [slots, setSlots] = useState<Record<DayOfWeek, number>>(DEFAULT_SLOTS);
-  const [teams, setTeams] = useState<TeamRow[]>([emptyRow(), emptyRow()]);
+  // Precarga con la plantilla actual si hay equipos conocidos (ver
+  // getLastTeamRoster en src/lib/data.ts): así el asistente ya arranca con
+  // los 12 equipos en vez de forzar a tocar "Usar plantilla actual" cada vez.
+  const [teams, setTeams] = useState<TeamRow[]>(() =>
+    currentTeams.length > 0
+      ? currentTeams.map((t) => ({
+          id: generateId("row"),
+          name: t.name,
+          managerName: t.managerName,
+          allowedDays: currentTeamAvailability.find((a) => a.teamId === t.id)?.allowedDays ?? [],
+        }))
+      : [emptyRow(), emptyRow()],
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

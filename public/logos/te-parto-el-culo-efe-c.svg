@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <clipPath id="argentina-circle">
+      <circle cx="50" cy="50" r="48"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#argentina-circle)">
+    <rect x="0" y="0" width="100" height="33.4" fill="#74ACDF"/>
+    <rect x="0" y="33.3" width="100" height="33.4" fill="#ffffff"/>
+    <rect x="0" y="66.6" width="100" height="33.4" fill="#74ACDF"/>
+  </g>
+  <circle cx="50" cy="50" r="48" fill="none" stroke="#1a1a2e" stroke-width="4"/>
+  <!-- Sol de Mayo simplificado -->
+  <g>
+    <circle cx="50" cy="50" r="9" fill="#F6B40E" stroke="#85340A" stroke-width="1"/>
+    <g fill="#F6B40E" stroke="#85340A" stroke-width="0.8">
+      <polygon points="50,29 53,38 47,38"/>
+      <polygon points="50,71 53,62 47,62"/>
+      <polygon points="29,50 38,53 38,47"/>
+      <polygon points="71,50 62,53 62,47"/>
+      <polygon points="35,35 42,41 38,44"/>
+      <polygon points="65,35 58,41 62,44"/>
+      <polygon points="35,65 42,59 38,56"/>
+      <polygon points="65,65 58,59 62,56"/>
+    </g>
+  </g>
+</svg>
