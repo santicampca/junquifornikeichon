@@ -396,6 +396,33 @@ async function assertRosterCapacity(teamId: string, position: string | undefined
 }
 
 /**
+ * Cada plantel es un "seleccionado" de jugadores reales (ver TEAMS en
+ * prisma/seed.ts: Zenit's = Inglaterra, UD Europollas = España, UD La cota
+ * 1000 = Rusia, etc.) — un mismo jugador no puede estar anotado en dos
+ * equipos del mismo torneo a la vez (no puede jugar para dos selecciones).
+ * Compara por nombre normalizado (trim + minúsculas) contra los planteles
+ * de los OTROS equipos del mismo torneo; el propio equipo queda afuera de
+ * la comparación así que no hace falta excluir al jugador que se edita.
+ */
+async function assertPlayerNameAvailable(teamId: string, name: string): Promise<void> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { tournamentId: true } });
+  if (!team) throw new Error("Ese equipo no existe.");
+
+  const siblingPlayers = await prisma.player.findMany({
+    where: { teamId: { not: teamId }, team: { tournamentId: team.tournamentId } },
+    select: { name: true, team: { select: { name: true } } },
+  });
+
+  const normalized = name.trim().toLowerCase();
+  const duplicate = siblingPlayers.find((p) => p.name.trim().toLowerCase() === normalized);
+  if (duplicate) {
+    throw new Error(
+      `${name} ya está anotado en ${duplicate.team.name}; un jugador no puede estar en dos equipos del mismo torneo.`,
+    );
+  }
+}
+
+/**
  * Sin `assertAdmin` a propósito: cada equipo administra su propia
  * plantilla (mismo criterio que `setTeamLineupAction` para las
  * alineaciones) — el admin también puede, pero no hace falta. La UI
@@ -403,12 +430,14 @@ async function assertRosterCapacity(teamId: string, position: string | undefined
  */
 export async function createPlayerAction(teamId: string, input: PlayerInput): Promise<void> {
   assertValidPlayerInput(input);
+  const name = input.name.trim();
   await assertRosterCapacity(teamId, input.position?.trim() || undefined);
+  await assertPlayerNameAvailable(teamId, name);
 
   await prisma.player.create({
     data: {
       teamId,
-      name: input.name.trim(),
+      name,
       number: input.number,
       position: input.position?.trim() || undefined,
     },
@@ -422,14 +451,16 @@ export async function updatePlayerAction(playerId: string, input: PlayerInput): 
 
   const existing = await prisma.player.findUnique({ where: { id: playerId } });
   if (!existing) throw new Error("Jugador no encontrado.");
+  const name = input.name.trim();
   await assertRosterCapacity(existing.teamId, input.position?.trim() || undefined, playerId);
+  await assertPlayerNameAvailable(existing.teamId, name);
 
   // `goals` no se toca acá (ver comentario en PlayerInput): omitirlo del
   // `data` deja el valor actual intacto en vez de resetearlo a 0.
   await prisma.player.update({
     where: { id: playerId },
     data: {
-      name: input.name.trim(),
+      name,
       number: input.number,
       position: input.position?.trim() || undefined,
     },
