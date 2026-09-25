@@ -7,7 +7,11 @@ import { PhraseManager } from "@/components/admin-cms/phrase-manager";
 import { PhotoManager } from "@/components/admin-cms/photo-manager";
 
 export default async function AdminPage() {
-  const [bootstrapped, session] = await Promise.all([hasAdminUser(), getAdminSession()]);
+  const bootstrapped = await hasAdminUser();
+  const session = bootstrapped ? await getAdminSession() : null;
+  const [phrases, photos] = session
+    ? await Promise.all([getNewsPhrasesForAdmin(), getNewsPhotosForAdmin()])
+    : [[], []];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -21,25 +25,15 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      {!bootstrapped ? (
-        <BootstrapForm />
-      ) : !session ? (
-        <AdminLoginPanelForm />
-      ) : (
-        <PanelContent username={session.username} />
+      {!bootstrapped && <BootstrapForm />}
+      {bootstrapped && !session && <AdminLoginPanelForm />}
+      {bootstrapped && session && (
+        <div className="space-y-4">
+          <AccountPanel username={session.username} />
+          <PhraseManager phrases={phrases} />
+          <PhotoManager photos={photos} />
+        </div>
       )}
-    </div>
-  );
-}
-
-async function PanelContent({ username }: { username: string }) {
-  const [phrases, photos] = await Promise.all([getNewsPhrasesForAdmin(), getNewsPhotosForAdmin()]);
-
-  return (
-    <div className="space-y-4">
-      <AccountPanel username={username} />
-      <PhraseManager phrases={phrases} />
-      <PhotoManager photos={photos} />
     </div>
   );
 }
