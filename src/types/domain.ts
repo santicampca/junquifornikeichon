@@ -218,12 +218,63 @@ export const FORMATION_SLOT_LABELS: Record<ActiveFormation, string[]> = {
   "3-1": ["Atrás izquierda", "Atrás centro", "Atrás derecha", "Adelante"],
 };
 
+/**
+ * Formas tácticas para el modo PASIVO (6 titulares: 1 arquero + 5 de
+ * campo). El puesto 0 es siempre el arquero (ver PASSIVE_FORMATION_SLOTS);
+ * el "1" inicial del nombre de cada formación lo representa.
+ */
+export const PASSIVE_FORMATIONS = ["1-3-2", "1-2-3", "1-4-1", "1-2-1-2"] as const;
+export type PassiveFormation = (typeof PASSIVE_FORMATIONS)[number];
+
+export const PASSIVE_FORMATION_SLOTS: Record<PassiveFormation, { x: number; y: number }[]> = {
+  "1-3-2": [
+    { x: 50, y: 94 },
+    { x: 20, y: 70 },
+    { x: 50, y: 72 },
+    { x: 80, y: 70 },
+    { x: 35, y: 30 },
+    { x: 65, y: 30 },
+  ],
+  "1-2-3": [
+    { x: 50, y: 94 },
+    { x: 30, y: 70 },
+    { x: 70, y: 70 },
+    { x: 20, y: 30 },
+    { x: 50, y: 26 },
+    { x: 80, y: 30 },
+  ],
+  "1-4-1": [
+    { x: 50, y: 94 },
+    { x: 15, y: 68 },
+    { x: 38, y: 70 },
+    { x: 62, y: 70 },
+    { x: 85, y: 68 },
+    { x: 50, y: 26 },
+  ],
+  "1-2-1-2": [
+    { x: 50, y: 94 },
+    { x: 30, y: 72 },
+    { x: 70, y: 72 },
+    { x: 50, y: 50 },
+    { x: 35, y: 26 },
+    { x: 65, y: 26 },
+  ],
+};
+
+/** Nombre corto de cada puesto (mismo orden que PASSIVE_FORMATION_SLOTS). El puesto 0 siempre es "Arquero". */
+export const PASSIVE_FORMATION_SLOT_LABELS: Record<PassiveFormation, string[]> = {
+  "1-3-2": ["Arquero", "Defensa izquierda", "Defensa centro", "Defensa derecha", "Adelante izquierda", "Adelante derecha"],
+  "1-2-3": ["Arquero", "Defensa izquierda", "Defensa derecha", "Adelante izquierda", "Adelante centro", "Adelante derecha"],
+  "1-4-1": ["Arquero", "Defensa izquierda", "Defensa centro-izquierda", "Defensa centro-derecha", "Defensa derecha", "Adelante"],
+  "1-2-1-2": ["Arquero", "Defensa izquierda", "Defensa derecha", "Medio", "Adelante izquierda", "Adelante derecha"],
+};
+
 export interface TeamLineup {
   teamId: string;
   mode: LineupMode;
   playerIds: string[];
-  /** Solo para ACTIVO; ver ACTIVE_FORMATIONS. */
-  formation?: ActiveFormation;
+  /** Ver ACTIVE_FORMATIONS (modo ACTIVO) / PASSIVE_FORMATIONS (modo PASIVO). */
+  formation?: ActiveFormation | PassiveFormation;
 }
 
 /** Resultado de una Server Action: nunca se redacta en producción (a diferencia de un `throw`). */

@@ -5,6 +5,7 @@ import type {
   Champion,
   CompetitionStage,
   LineupMode,
+  PassiveFormation,
   Match,
   NewsCategory,
   NewsPhoto,
@@ -278,7 +279,7 @@ export const getTeamLineups = cache(async (teamId: string): Promise<TeamLineup[]
     teamId: l.teamId,
     mode: l.mode as LineupMode,
     playerIds: l.playerIds,
-    formation: (l.formation as ActiveFormation) ?? undefined,
+    formation: (l.formation as ActiveFormation | PassiveFormation) ?? undefined,
   }));
 });
 

@@ -260,16 +260,17 @@ model TeamLineup {
   team   Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
   mode   LineupMode
 
-  /// Ids de los jugadores titulares para este modo, EN ORDEN: para ACTIVO,
-  /// el índice i corresponde al puesto i de `formation` (ver
-  /// FORMATION_SLOTS en src/types/domain.ts) — así se sabe en qué lugar de
-  /// la cancha va cada uno. PASIVO: 6 (exactamente 1 Portero). ACTIVO: 4
-  /// (0 Porteros, al menos 1 Defensa).
+  /// Ids de los jugadores titulares para este modo, EN ORDEN: el índice i
+  /// corresponde al puesto i de `formation` (ver FORMATION_SLOTS/
+  /// PASSIVE_FORMATION_SLOTS en src/types/domain.ts) — así se sabe en qué
+  /// lugar de la cancha va cada uno. Para PASIVO el puesto 0 siempre es el
+  /// arquero. PASIVO: 6 (exactamente 1 Portero). ACTIVO: 4 (0 Porteros, al
+  /// menos 1 Defensa).
   playerIds String[] @db.ObjectId
 
-  /// Forma táctica elegida para el modo ACTIVO (ej: "1-3", "1-2-1"; ver
-  /// ACTIVE_FORMATIONS en src/types/domain.ts). Null para PASIVO (todavía
-  /// sin selector de formación) o si el equipo no eligió una.
+  /// Forma táctica elegida (ej: "1-3"/"1-2-1" para ACTIVO, "1-3-2"/"1-2-3"
+  /// para PASIVO; ver ACTIVE_FORMATIONS/PASSIVE_FORMATIONS en
+  /// src/types/domain.ts). Null si el equipo todavía no eligió una.
   formation String?
 
   updatedAt DateTime @updatedAt

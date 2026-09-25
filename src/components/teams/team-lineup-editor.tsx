@@ -8,9 +8,12 @@ import {
   ACTIVE_FORMATIONS,
   FORMATION_SLOTS,
   FORMATION_SLOT_LABELS,
-  LINEUP_SIZE,
+  PASSIVE_FORMATIONS,
+  PASSIVE_FORMATION_SLOTS,
+  PASSIVE_FORMATION_SLOT_LABELS,
   type ActiveFormation,
   type LineupMode,
+  type PassiveFormation,
   type Player,
   type TeamLineup,
 } from "@/types/domain";
@@ -25,6 +28,8 @@ const MODE_HELP: Record<LineupMode, string> = {
   PASIVO: "6 titulares: exactamente 1 arquero + 5 jugadores de campo.",
   ACTIVO: "4 titulares, sin arquero: al menos 1 defensa ocupa ese lugar.",
 };
+
+type Slot = { x: number; y: number };
 
 function PitchDot({ x, y, logoUrl, label }: { x: number; y: number; logoUrl?: string; label?: string }) {
   return (
@@ -48,11 +53,13 @@ function PitchDot({ x, y, logoUrl, label }: { x: number; y: number; logoUrl?: st
 }
 
 function MiniPitch({
-  formation,
+  slots,
+  label,
   selected,
   onClick,
 }: {
-  formation: ActiveFormation;
+  slots: Slot[];
+  label: string;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -66,7 +73,7 @@ function MiniPitch({
       )}
     >
       <div className="relative aspect-[3/4] w-16 overflow-hidden rounded bg-green-800/70">
-        {FORMATION_SLOTS[formation].map((slot, i) => (
+        {slots.map((slot, i) => (
           <div
             key={i}
             className="absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-400"
@@ -74,45 +81,56 @@ function MiniPitch({
           />
         ))}
       </div>
-      <span className="text-[11px] font-semibold text-foreground">{formation}</span>
+      <span className="text-[11px] font-semibold text-foreground">{label}</span>
     </button>
   );
 }
 
 function PasivoPanel({
   teamId,
+  teamLogoUrl,
   players,
   initialPlayerIds,
+  initialFormation,
   canEdit,
 }: {
   teamId: string;
+  teamLogoUrl?: string;
   players: Player[];
   initialPlayerIds: string[];
+  initialFormation?: PassiveFormation;
   canEdit: boolean;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set(initialPlayerIds));
+  const [formation, setFormation] = useState<PassiveFormation | null>(initialFormation ?? null);
+  const [slots, setSlots] = useState<string[]>(() => {
+    const filled = [...initialPlayerIds];
+    while (filled.length < 6) filled.push("");
+    return filled.slice(0, 6);
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedOk, setSavedOk] = useState(false);
 
-  const size = LINEUP_SIZE.PASIVO;
+  const goalkeepers = players.filter((p) => p.position === "Portero");
+  const outfieldPlayers = players.filter((p) => p.position !== "Portero");
+  const playerById = new Map(players.map((p) => [p.id, p]));
+  const filledSlots = slots.filter(Boolean).length;
 
-  function toggle(id: string) {
+  function setSlot(index: number, playerId: string) {
     setSavedOk(false);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSlots((prev) => prev.map((id, i) => (i === index ? playerId : id)));
   }
 
   async function handleSave() {
+    if (!formation) {
+      setError("Elegí una formación.");
+      return;
+    }
     setError(null);
     setSavedOk(false);
     setSubmitting(true);
-    const result = await setTeamLineupAction(teamId, "PASIVO", [...selected]);
+    const result = await setTeamLineupAction(teamId, "PASIVO", slots.filter(Boolean), formation);
     if (result.success) {
       setSavedOk(true);
       router.refresh();
@@ -127,38 +145,97 @@ function PasivoPanel({
       <div className="mb-1 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">{MODE_LABEL.PASIVO}</h3>
         {canEdit && (
-          <span className={cn("text-xs font-medium", selected.size === size ? "text-win" : "text-muted")}>
-            {selected.size}/{size}
+          <span className={cn("text-xs font-medium", filledSlots === 6 ? "text-win" : "text-muted")}>
+            {filledSlots}/6
           </span>
         )}
       </div>
       <p className="mb-3 text-xs text-muted">{MODE_HELP.PASIVO}</p>
 
       {!canEdit ? (
-        <ul className="space-y-1">
-          {players
-            .filter((p) => initialPlayerIds.includes(p.id))
-            .map((p) => (
-              <li key={p.id} className="text-sm text-foreground">
-                {p.name} {p.position && <span className="text-xs text-muted">— {p.position}</span>}
-              </li>
+        initialFormation ? (
+          <div className="relative mx-auto aspect-[3/4] w-40 overflow-hidden rounded-lg bg-green-800/70">
+            {PASSIVE_FORMATION_SLOTS[initialFormation].map((slot, i) => (
+              <PitchDot
+                key={i}
+                x={slot.x}
+                y={slot.y}
+                logoUrl={teamLogoUrl}
+                label={playerById.get(initialPlayerIds[i])?.name}
+              />
             ))}
-          {initialPlayerIds.length === 0 && <p className="text-xs text-muted">Todavía no se definió.</p>}
-        </ul>
+          </div>
+        ) : initialPlayerIds.length > 0 ? (
+          <ul className="space-y-1">
+            {players
+              .filter((p) => initialPlayerIds.includes(p.id))
+              .map((p) => (
+                <li key={p.id} className="text-sm text-foreground">
+                  {p.name} {p.position && <span className="text-xs text-muted">— {p.position}</span>}
+                </li>
+              ))}
+            <p className="text-xs text-muted">Todavía no eligió una formación.</p>
+          </ul>
+        ) : (
+          <p className="text-xs text-muted">Todavía no se definió.</p>
+        )
       ) : (
         <>
-          <ul className="max-h-56 space-y-0.5 overflow-y-auto">
-            {players.map((p) => (
-              <li key={p.id}>
-                <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-surface-elevated">
-                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
-                  <span className="text-foreground">{p.name}</span>
-                  {p.position && <span className="text-xs text-muted">{p.position}</span>}
-                </label>
-              </li>
+          <div className="mb-3 flex flex-wrap justify-center gap-2">
+            {PASSIVE_FORMATIONS.map((f) => (
+              <MiniPitch
+                key={f}
+                slots={PASSIVE_FORMATION_SLOTS[f]}
+                label={f}
+                selected={formation === f}
+                onClick={() => setFormation(f)}
+              />
             ))}
-            {players.length === 0 && <p className="text-xs text-muted">No hay jugadores cargados todavía.</p>}
-          </ul>
+          </div>
+
+          {formation && (
+            <>
+              <div className="relative mx-auto mb-3 aspect-[3/4] w-40 overflow-hidden rounded-lg bg-green-800/70">
+                {PASSIVE_FORMATION_SLOTS[formation].map((slot, i) => (
+                  <PitchDot
+                    key={i}
+                    x={slot.x}
+                    y={slot.y}
+                    logoUrl={teamLogoUrl}
+                    label={playerById.get(slots[i])?.name ?? PASSIVE_FORMATION_SLOT_LABELS[formation][i]}
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-1.5">
+                {slots.map((slotPlayerId, i) => {
+                  // El puesto 0 siempre es el arquero: solo se puede elegir un jugador con esa posición.
+                  const options = i === 0 ? goalkeepers : outfieldPlayers;
+                  return (
+                    <select
+                      key={i}
+                      value={slotPlayerId}
+                      onChange={(e) => setSlot(i, e.target.value)}
+                      className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                    >
+                      <option value="">{`${PASSIVE_FORMATION_SLOT_LABELS[formation][i]} — sin asignar`}</option>
+                      {options.map((p) => (
+                        <option key={p.id} value={p.id} disabled={slots.includes(p.id) && slots[i] !== p.id}>
+                          {p.name}
+                          {p.position ? ` (${p.position})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {goalkeepers.length === 0 && (
+            <p className="mt-2 text-xs text-loss">Este equipo todavía no tiene un jugador anotado como Portero.</p>
+          )}
+
           {error && <p className="mt-2 text-xs text-loss">{error}</p>}
           {savedOk && <p className="mt-2 text-xs text-win">Alineación guardada.</p>}
           <button
@@ -270,7 +347,13 @@ function ActivoPanel({
         <>
           <div className="mb-3 flex flex-wrap justify-center gap-2">
             {ACTIVE_FORMATIONS.map((f) => (
-              <MiniPitch key={f} formation={f} selected={formation === f} onClick={() => setFormation(f)} />
+              <MiniPitch
+                key={f}
+                slots={FORMATION_SLOTS[f]}
+                label={f}
+                selected={formation === f}
+                onClick={() => setFormation(f)}
+              />
             ))}
           </div>
 
@@ -350,13 +433,20 @@ export function TeamLineupEditor({
     <div>
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Alineaciones</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <PasivoPanel teamId={teamId} players={players} initialPlayerIds={pasivo?.playerIds ?? []} canEdit={canEdit} />
+        <PasivoPanel
+          teamId={teamId}
+          teamLogoUrl={teamLogoUrl}
+          players={players}
+          initialPlayerIds={pasivo?.playerIds ?? []}
+          initialFormation={pasivo?.formation as PassiveFormation | undefined}
+          canEdit={canEdit}
+        />
         <ActivoPanel
           teamId={teamId}
           teamLogoUrl={teamLogoUrl}
           players={players}
           initialPlayerIds={activo?.playerIds ?? []}
-          initialFormation={activo?.formation}
+          initialFormation={activo?.formation as ActiveFormation | undefined}
           canEdit={canEdit}
         />
       </div>

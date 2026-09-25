@@ -14,6 +14,7 @@ import {
   PLAYER_POSITIONS,
   LINEUP_SIZE,
   ACTIVE_FORMATIONS,
+  PASSIVE_FORMATIONS,
   type ActionResult,
   type LineupMode,
   type TournamentState,
@@ -932,10 +933,10 @@ function assertLineupComposition(mode: LineupMode, players: { position: string |
 
 /**
  * Guarda la alineación titular fija de un equipo para un modo. Reemplaza
- * por completo la lista anterior de ese modo (no es incremental). `formation`
- * es obligatoria para ACTIVO (define en qué puesto de la cancha cae cada
- * `playerIds[i]`, ver FORMATION_SLOTS en src/types/domain.ts) e ignorada
- * para PASIVO (todavía sin selector de formación).
+ * por completo la lista anterior de ese modo (no es incremental).
+ * `playerIds` es POSICIONAL: el índice i cae en el puesto i de `formation`
+ * (ver FORMATION_SLOTS/PASSIVE_FORMATION_SLOTS en src/types/domain.ts) —
+ * para PASIVO, el puesto 0 es siempre el arquero.
  */
 export async function setTeamLineupAction(
   teamId: string,
@@ -957,15 +958,22 @@ export async function setTeamLineupAction(
     const compositionError = assertLineupComposition(mode, players);
     if (compositionError) return { success: false, message: compositionError };
 
-    if (mode === "ACTIVO" && !(ACTIVE_FORMATIONS as readonly string[]).includes(formation ?? "")) {
-      return { success: false, message: "Elegí una formación para el modo activo." };
+    const validFormations: readonly string[] = mode === "ACTIVO" ? ACTIVE_FORMATIONS : PASSIVE_FORMATIONS;
+    if (!validFormations.includes(formation ?? "")) {
+      return { success: false, message: `Elegí una formación para el modo ${mode === "ACTIVO" ? "activo" : "pasivo"}.` };
     }
-    const storedFormation = mode === "ACTIVO" ? formation : null;
+
+    if (mode === "PASIVO" && playerIds.length === LINEUP_SIZE.PASIVO) {
+      const playersById = new Map(players.map((p) => [p.id, p]));
+      if (playersById.get(playerIds[0])?.position !== "Portero") {
+        return { success: false, message: "El primer puesto (arquero) tiene que ser un jugador con posición Portero." };
+      }
+    }
 
     await prisma.teamLineup.upsert({
       where: { teamId_mode: { teamId, mode } },
-      create: { teamId, mode, playerIds: uniqueIds, formation: storedFormation },
-      update: { playerIds: uniqueIds, formation: storedFormation },
+      create: { teamId, mode, playerIds: uniqueIds, formation },
+      update: { playerIds: uniqueIds, formation },
     });
     revalidatePath("/", "layout");
     return { success: true };
