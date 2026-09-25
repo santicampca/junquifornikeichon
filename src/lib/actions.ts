@@ -18,23 +18,18 @@ import {
   type TournamentState,
 } from "@/types/domain";
 
-// Misma lista que src/lib/app-store.tsx: una traba de conveniencia, no
-// autenticación real. Se valida acá también (no solo en el cliente) porque
-// una Server Action es un endpoint HTTP más: cualquiera con la URL podría
-// invocarla directo si no se revisara el nombre del lado del servidor.
-const ADMIN_ALLOWLIST = ["santiago", "zenits", "zenit s"];
-
-function normalizeName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/gi, " ")
-    .trim()
-    .toLowerCase();
-}
-
+// Antes esto era una lista de nombres públicos ("santiago", "zenits" — el
+// nombre del DT y el equipo de Zenit's, ambos a la vista de cualquiera en
+// la propia web) contra la que se comparaba el texto que el usuario
+// tipeaba en el login. Cualquiera de los 12 amigos podía escribir "zenits"
+// y ser admin de todo el sitio. Ahora hace falta una CLAVE de verdad,
+// guardada solo en el servidor (env var `SITE_ADMIN_KEY`, nunca se manda al
+// cliente) — no un nombre adivinable. El parámetro sigue llamándose
+// `adminName` en las ~20 Server Actions de este archivo para no tener que
+// tocar cada una de sus firmas/usos, pero en los hechos ahora es esa clave.
 function assertAdmin(adminName: string) {
-  if (!ADMIN_ALLOWLIST.includes(normalizeName(adminName))) {
+  const expected = process.env.SITE_ADMIN_KEY;
+  if (!expected || adminName !== expected) {
     throw new Error("No tenés permisos de administrador para hacer esto.");
   }
 }
@@ -48,6 +43,20 @@ function fail(message: string): { success: false; message: string } {
 }
 
 const ok: ActionResult = { success: true };
+
+/**
+ * Verifica la clave de administrador contra el servidor sin tocar la base:
+ * la usa el login del sitio (`src/lib/app-store.tsx`/`admin-login.tsx`)
+ * antes de guardar la clave en localStorage y prender el modo admin.
+ */
+export async function verifyAdminAccessAction(secret: string): Promise<ActionResult> {
+  try {
+    assertAdmin(secret);
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "Clave incorrecta.");
+  }
+}
 
 /**
  * Pone todos los partidos del torneo activo en su estado inicial: borra
@@ -372,8 +381,13 @@ async function assertRosterCapacity(teamId: string, position: string | undefined
   }
 }
 
-export async function createPlayerAction(adminName: string, teamId: string, input: PlayerInput): Promise<void> {
-  assertAdmin(adminName);
+/**
+ * Sin `assertAdmin` a propósito: cada equipo administra su propia
+ * plantilla (mismo criterio que `setTeamLineupAction` para las
+ * alineaciones) — el admin también puede, pero no hace falta. La UI
+ * (`TeamRoster`) ya gatea la edición a `isAdmin || session?.teamId === teamId`.
+ */
+export async function createPlayerAction(teamId: string, input: PlayerInput): Promise<void> {
   assertValidPlayerInput(input);
   await assertRosterCapacity(teamId, input.position?.trim() || undefined);
 
@@ -389,8 +403,7 @@ export async function createPlayerAction(adminName: string, teamId: string, inpu
   revalidatePath("/", "layout");
 }
 
-export async function updatePlayerAction(adminName: string, playerId: string, input: PlayerInput): Promise<void> {
-  assertAdmin(adminName);
+export async function updatePlayerAction(playerId: string, input: PlayerInput): Promise<void> {
   assertValidPlayerInput(input);
 
   const existing = await prisma.player.findUnique({ where: { id: playerId } });
@@ -409,8 +422,7 @@ export async function updatePlayerAction(adminName: string, playerId: string, in
   revalidatePath("/", "layout");
 }
 
-export async function deletePlayerAction(adminName: string, playerId: string): Promise<void> {
-  assertAdmin(adminName);
+export async function deletePlayerAction(playerId: string): Promise<void> {
   await prisma.player.delete({ where: { id: playerId } });
   revalidatePath("/", "layout");
 }

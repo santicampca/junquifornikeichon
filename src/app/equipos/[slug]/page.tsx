@@ -45,9 +45,15 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
     })
     .filter(({ row }) => row.played > 0);
 
-  const recentMatches = [...teamMatches]
+  const upcomingMatches = teamMatches
+    .filter((m) => m.status === "SCHEDULED")
+    .sort((a, b) => (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? ""))
+    .slice(0, 4);
+
+  const recentMatches = teamMatches
+    .filter((m) => m.status === "PLAYED" || m.status === "WALKOVER")
     .sort((a, b) => (b.scheduledAt ?? "").localeCompare(a.scheduledAt ?? ""))
-    .slice(0, 8);
+    .slice(0, 4);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -125,25 +131,48 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
       )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-            Historial de partidos
-          </h2>
-          {recentMatches.length === 0 ? (
-            <EmptyState title="Este equipo todavía no tiene partidos" />
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {recentMatches.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  homeTeam={teamsById.get(match.homeTeamId)}
-                  awayTeam={teamsById.get(match.awayTeamId)}
-                  tournamentSlug={state.tournament.slug}
-                />
-              ))}
-            </div>
-          )}
+        <div className="space-y-6 lg:col-span-2">
+          <section>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+              Próximos partidos
+            </h2>
+            {upcomingMatches.length === 0 ? (
+              <EmptyState title="Sin partidos programados" />
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {upcomingMatches.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    homeTeam={teamsById.get(match.homeTeamId)}
+                    awayTeam={teamsById.get(match.awayTeamId)}
+                    tournamentSlug={state.tournament.slug}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+              Resultados recientes
+            </h2>
+            {recentMatches.length === 0 ? (
+              <EmptyState title="Este equipo todavía no tiene resultados" />
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {recentMatches.map((match) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    homeTeam={teamsById.get(match.homeTeamId)}
+                    awayTeam={teamsById.get(match.awayTeamId)}
+                    tournamentSlug={state.tournament.slug}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         <div>

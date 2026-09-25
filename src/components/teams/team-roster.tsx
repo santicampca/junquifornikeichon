@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
-import { useAdmin } from "@/lib/app-store";
+import { useAdmin, useTeamAuth } from "@/lib/app-store";
 import { createPlayerAction, deletePlayerAction, updatePlayerAction } from "@/lib/actions";
 import { MAX_PLAYERS_PER_POSITION, MAX_ROSTER_SIZE, PLAYER_POSITIONS, type Player } from "@/types/domain";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,9 @@ function toFormState(player: Player): PlayerFormState {
 
 export function TeamRoster({ teamId, players }: { teamId: string; players: Player[] }) {
   const router = useRouter();
-  const { isAdmin, adminName } = useAdmin();
+  const { isAdmin } = useAdmin();
+  const { session } = useTeamAuth();
+  const canEdit = isAdmin || session?.teamId === teamId;
 
   const [adding, setAdding] = useState(false);
   const [addForm, setAddForm] = useState<PlayerFormState>(emptyForm());
@@ -57,11 +59,11 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!adminName) return;
+    if (!canEdit) return;
     setSubmitting(true);
     setError(null);
     try {
-      await createPlayerAction(adminName, teamId, parseInput(addForm));
+      await createPlayerAction(teamId, parseInput(addForm));
       setAddForm(emptyForm());
       setAdding(false);
       router.refresh();
@@ -74,11 +76,11 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
 
   async function handleEdit(e: FormEvent, playerId: string) {
     e.preventDefault();
-    if (!adminName) return;
+    if (!canEdit) return;
     setSubmitting(true);
     setError(null);
     try {
-      await updatePlayerAction(adminName, playerId, parseInput(editForm));
+      await updatePlayerAction(playerId, parseInput(editForm));
       setEditingId(null);
       router.refresh();
     } catch (err) {
@@ -89,12 +91,12 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
   }
 
   async function handleDelete(playerId: string) {
-    if (!adminName) return;
+    if (!canEdit) return;
     if (!window.confirm("¿Sacar a este jugador de la plantilla?")) return;
     setSubmitting(true);
     setError(null);
     try {
-      await deletePlayerAction(adminName, playerId);
+      await deletePlayerAction(playerId);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo eliminar el jugador.");
@@ -177,7 +179,7 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                   <span className="shrink-0 text-xs text-muted">{player.position}</span>
                 )}
               </div>
-              {isAdmin && (
+              {canEdit && (
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     onClick={() => {
@@ -206,7 +208,7 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
 
       {error && <p className="text-xs text-loss">{error}</p>}
 
-      {isAdmin &&
+      {canEdit &&
         (!rosterFull || adding) &&
         (adding ? (
           <form

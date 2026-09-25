@@ -1,29 +1,14 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { verifyAdminAccessAction } from "@/lib/actions";
 
 const ADMIN_STORAGE_KEY = "torneosfc:admin:v1";
-
-// Nombres aceptados para entrar en modo admin (sin distinguir
-// mayúsculas/acentos/apóstrofes). Esto es una traba de conveniencia para la
-// UI (oculta/muestra los botones); la Server Action del lado del servidor
-// (src/lib/actions.ts) vuelve a validar el nombre antes de tocar la base,
-// así que no alcanza con manipular el localStorage del navegador.
-const ADMIN_ALLOWLIST = ["santiago", "zenits", "zenit s"];
-
-function normalizeName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/gi, " ")
-    .trim()
-    .toLowerCase();
-}
 
 interface AdminStoreValue {
   isAdmin: boolean;
   adminName: string | null;
-  login: (name: string) => boolean;
+  login: (secret: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -44,10 +29,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = useCallback((name: string) => {
-    const ok = ADMIN_ALLOWLIST.includes(normalizeName(name));
-    if (ok) {
-      const trimmed = name.trim();
+  // La verificación real pasa siempre por el servidor (ver
+  // verifyAdminAccessAction en src/lib/actions.ts): antes esto comparaba
+  // contra una lista de nombres públicos y adivinables en el propio
+  // navegador; ahora hace falta la clave real, que nunca viaja al bundle
+  // del cliente.
+  const login = useCallback(async (secret: string) => {
+    const trimmed = secret.trim();
+    const result = await verifyAdminAccessAction(trimmed);
+    if (result.success) {
       setAdminName(trimmed);
       try {
         window.localStorage.setItem(ADMIN_STORAGE_KEY, trimmed);
@@ -55,7 +45,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         // ignorar
       }
     }
-    return ok;
+    return result.success;
   }, []);
 
   const logout = useCallback(() => {
