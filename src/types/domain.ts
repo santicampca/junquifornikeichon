@@ -24,6 +24,20 @@ export type MatchStatus =
   | "CANCELLED"
   | "WALKOVER";
 
+/** Categoría de resultado para el banco de titulares (ver src/lib/headlines.ts). */
+export type NewsCategory = "BLOWOUT" | "COMFORTABLE" | "NARROW" | "DRAW" | "FORFEIT";
+
+export interface NewsPhrase {
+  id: string;
+  category: NewsCategory;
+  template: string;
+}
+
+export interface NewsPhoto {
+  id: string;
+  imageData: string;
+}
+
 export type DayOfWeek =
   | "MONDAY"
   | "TUESDAY"

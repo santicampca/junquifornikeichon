@@ -1,53 +1,53 @@
-import type { Match, Team } from "@/types/domain";
+import type { Match, NewsCategory, Team } from "@/types/domain";
 
 /**
  * Titulares con humor negro/picante para el resultado de un partido (liga
- * de amigos, sin filtro de "prensa deportiva seria"). Se elige la plantilla
+ * de amigos, sin filtro de "prensa deportiva seria"). La plantilla se elige
  * de forma determinística a partir del id del partido, para que el mismo
  * resultado no cambie de chiste en cada render.
+ *
+ * Las plantillas son texto plano con placeholders ({W}, {L}, {WS}, {LS} o
+ * {A}, {B}, {S} para empates) en vez de funciones: así el banco de frases
+ * que carga el admin desde /admin (ver src/lib/admin-cms-actions.ts) se
+ * renderiza con el mismo motor que estas por defecto.
  */
 
-type Template2 = (winner: string, loser: string, winnerScore: number, loserScore: number) => string;
-type DrawTemplate = (home: string, away: string, score: number) => string;
+const DEFAULT_POOLS: Record<NewsCategory, string[]> = {
+  BLOWOUT: [
+    "{W} se cogió a {L}, le hundió toda la pollita.",
+    "{W} destrozó a {L} {WS}-{LS}: no fue partido, fue una masacre con nombre y apellido.",
+    "A {L} lo hicieron mierda: {WS}-{LS} y todavía preguntan qué les pasó.",
+    "{W} le bajó los pantalones a {L} en frente de todos, {WS}-{LS}.",
+    "Vergüenza ajena total: {W} humilló a {L} {WS}-{LS} y ni se dignó a festejar.",
+    "{L} se fue de la cancha con el orgullo hecho pomada: {W} goleó {WS}-{LS}.",
+    "{W} le rompió el orto a {L}, {WS}-{LS}, para la casa a llorar con mamá.",
+  ],
+  COMFORTABLE: [
+    "{W} le dio una paliza prolija a {L}: {WS}-{LS}, sin piedad ni vaselina.",
+    "{L} salió a jugar y salió cagando: {W} lo pasó {WS}-{LS}.",
+    "{W} no tuvo compasión: {WS}-{LS} y {L} a rezar el rosario.",
+    "{L} quedó boqueando en la cancha: {W} se lo llevó puesto {WS}-{LS}.",
+  ],
+  NARROW: [
+    "{W} sufrió pero se la llevó calentita: {WS}-{LS} sobre {L}.",
+    "Infarto en cancha: {W} le ganó por la mínima a {L}, {WS}-{LS}, con lo puesto.",
+    "{L} lo tuvo en la mano y lo dejó ir: {W} se lo robó {WS}-{LS}.",
+    "Ajustadísimo: {W} {WS}-{LS} {L}, un gol que le va a doler toda la semana a {L}.",
+  ],
+  DRAW: [
+    "{A} y {B} se sacaron los mocos y no rompieron nada: {S}-{S}, empate de siesta.",
+    "Ni {A} ni {B} se animaron a jugar en serio: {S}-{S} y a otra cosa.",
+    "{A} {S}-{S} {B}: un empate que no le sirve ni al que lo mira.",
+  ],
+  FORFEIT: [
+    "{L} ni se apareció, el cagón: {W} se llevó los puntos gratis por walkover.",
+    "{W} ganó sin mover un dedo: {L} se cagó y dejó plantada a la cancha.",
+    "Ausencia que sale cara: {L} regaló el partido y {W} se lo llevó calentito, de arriba.",
+  ],
+};
 
-const BLOWOUT_TEMPLATES: Template2[] = [
-  (w, l) => `${w} se cogió a ${l}, le hundió toda la pollita.`,
-  (w, l, ws, ls) => `${w} destrozó a ${l} ${ws}-${ls}: no fue partido, fue una masacre con nombre y apellido.`,
-  (w, l, ws, ls) => `A ${l} lo hicieron mierda: ${ws}-${ls} y todavía preguntan qué les pasó.`,
-  (w, l, ws, ls) => `${w} le bajó los pantalones a ${l} en frente de todos, ${ws}-${ls}.`,
-  (w, l, ws, ls) => `Vergüenza ajena total: ${w} humilló a ${l} ${ws}-${ls} y ni se dignó a festejar.`,
-  (w, l, ws, ls) => `${l} se fue de la cancha con el orgullo hecho pomada: ${w} goleó ${ws}-${ls}.`,
-  (w, l, ws, ls) => `${w} le rompió el orto a ${l}, ${ws}-${ls}, para la casa a llorar con mamá.`,
-];
-
-const COMFORTABLE_TEMPLATES: Template2[] = [
-  (w, l, ws, ls) => `${w} le dio una paliza prolija a ${l}: ${ws}-${ls}, sin piedad ni vaselina.`,
-  (w, l, ws, ls) => `${l} salió a jugar y salió cagando: ${w} lo pasó ${ws}-${ls}.`,
-  (w, l, ws, ls) => `${w} no tuvo compasión: ${ws}-${ls} y ${l} a rezar el rosario.`,
-  (w, l, ws, ls) => `${l} quedó boqueando en la cancha: ${w} se lo llevó puesto ${ws}-${ls}.`,
-];
-
-const NARROW_TEMPLATES: Template2[] = [
-  (w, l, ws, ls) => `${w} sufrió pero se la llevó calentita: ${ws}-${ls} sobre ${l}.`,
-  (w, l, ws, ls) => `Infarto en cancha: ${w} le ganó por la mínima a ${l}, ${ws}-${ls}, con lo puesto.`,
-  (w, l, ws, ls) => `${l} lo tuvo en la mano y lo dejó ir: ${w} se lo robó ${ws}-${ls}.`,
-  (w, l, ws, ls) => `Ajustadísimo: ${w} ${ws}-${ls} ${l}, un gol que le va a doler toda la semana a ${l}.`,
-];
-
-const DRAW_TEMPLATES: DrawTemplate[] = [
-  (a, b, s) => `${a} y ${b} se sacaron los mocos y no rompieron nada: ${s}-${s}, empate de siesta.`,
-  (a, b, s) => `Ni ${a} ni ${b} se animaron a jugar en serio: ${s}-${s} y a otra cosa.`,
-  (a, b, s) => `${a} ${s}-${s} ${b}: un empate que no le sirve ni al que lo mira.`,
-];
-
-const FORFEIT_TEMPLATES: ((winner: string, loser: string) => string)[] = [
-  (w, l) => `${l} ni se apareció, el cagón: ${w} se llevó los puntos gratis por walkover.`,
-  (w, l) => `${w} ganó sin mover un dedo: ${l} se cagó y dejó plantada a la cancha.`,
-  (w, l) => `Ausencia que sale cara: ${l} regaló el partido y ${w} se lo llevó calentito, de arriba.`,
-];
-
-/** Hash simple (djb2) para elegir plantilla de forma estable por partido. */
-function hashString(value: string): number {
+/** Hash simple (djb2) para elegir algo de forma estable a partir de un id. */
+export function hashString(value: string): number {
   let hash = 5381;
   for (let i = 0; i < value.length; i++) hash = (hash * 33) ^ value.charCodeAt(i);
   return Math.abs(hash);
@@ -57,17 +57,33 @@ function pick<T>(pool: T[], seed: number): T {
   return pool[seed % pool.length];
 }
 
+function fillTemplate(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (raw, key: string) => (key in vars ? String(vars[key]) : raw));
+}
+
 export interface MatchHeadline {
   matchId: string;
   text: string;
 }
 
-/** Devuelve un titular picante para el resultado, o null si el partido no tiene marcador cerrado. */
-export function buildMatchHeadline(match: Match, homeTeam?: Team, awayTeam?: Team): MatchHeadline | null {
+/**
+ * Devuelve un titular picante para el resultado, o null si el partido no
+ * tiene marcador cerrado. `customPools` (banco de frases del admin, ver
+ * getNewsPhrasePools en src/lib/data.ts) reemplaza por completo el pool por
+ * defecto de una categoría en cuanto tiene al menos una fila cargada.
+ */
+export function buildMatchHeadline(
+  match: Match,
+  homeTeam?: Team,
+  awayTeam?: Team,
+  customPools?: Partial<Record<NewsCategory, string[]>>,
+): MatchHeadline | null {
   if (!homeTeam || !awayTeam) return null;
   if (match.status !== "PLAYED" && match.status !== "WALKOVER") return null;
-  if (match.homeScore === null || match.homeScore === undefined) return null;
-  if (match.awayScore === null || match.awayScore === undefined) return null;
+  if (match.homeScore === null || match.awayScore === null) return null;
+
+  const poolFor = (category: NewsCategory) =>
+    customPools?.[category]?.length ? (customPools[category] as string[]) : DEFAULT_POOLS[category];
 
   const home = match.homeScore;
   const away = match.awayScore;
@@ -75,17 +91,23 @@ export function buildMatchHeadline(match: Match, homeTeam?: Team, awayTeam?: Tea
 
   if (match.isForfeit && home !== away) {
     const [winner, loser] = home > away ? [homeTeam.name, awayTeam.name] : [awayTeam.name, homeTeam.name];
-    return { matchId: match.id, text: pick(FORFEIT_TEMPLATES, seed)(winner, loser) };
+    const template = pick(poolFor("FORFEIT"), seed);
+    return { matchId: match.id, text: fillTemplate(template, { W: winner, L: loser }) };
   }
 
   if (home === away) {
-    return { matchId: match.id, text: pick(DRAW_TEMPLATES, seed)(homeTeam.name, awayTeam.name, home) };
+    const template = pick(poolFor("DRAW"), seed);
+    return { matchId: match.id, text: fillTemplate(template, { A: homeTeam.name, B: awayTeam.name, S: home }) };
   }
 
   const [winner, loser, winnerScore, loserScore] =
     home > away ? [homeTeam.name, awayTeam.name, home, away] : [awayTeam.name, homeTeam.name, away, home];
   const margin = winnerScore - loserScore;
-  const pool = margin >= 3 ? BLOWOUT_TEMPLATES : margin === 2 ? COMFORTABLE_TEMPLATES : NARROW_TEMPLATES;
+  const category: NewsCategory = margin >= 3 ? "BLOWOUT" : margin === 2 ? "COMFORTABLE" : "NARROW";
+  const template = pick(poolFor(category), seed);
 
-  return { matchId: match.id, text: pick(pool, seed)(winner, loser, winnerScore, loserScore) };
+  return {
+    matchId: match.id,
+    text: fillTemplate(template, { W: winner, L: loser, WS: winnerScore, LS: loserScore }),
+  };
 }

@@ -1,8 +1,14 @@
 import { TournamentCard } from "@/components/tournaments/tournament-card";
 import { NewTournamentButton } from "@/components/admin/new-tournament-button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getActiveTournamentState, getLastTeamRoster, getMatchProofImage } from "@/lib/data";
-import { buildMatchHeadline } from "@/lib/headlines";
+import {
+  getActiveTournamentState,
+  getLastTeamRoster,
+  getMatchProofImage,
+  getNewsPhotoPool,
+  getNewsPhrasePools,
+} from "@/lib/data";
+import { buildMatchHeadline, hashString } from "@/lib/headlines";
 import { Camera, Flame, Trophy } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -16,18 +22,27 @@ export default async function DashboardPage() {
   const activeStages = state ? state.stages.filter((s) => s.status !== "DRAFT").length : 0;
 
   const teamsById = new Map((state?.teams ?? []).map((t) => [t.id, t]));
+  const customPhrasePools = await getNewsPhrasePools();
   const headlines = allMatches
     .filter((m) => m.status === "PLAYED" || m.status === "WALKOVER")
     .sort((a, b) => (b.scheduledAt ?? "").localeCompare(a.scheduledAt ?? ""))
-    .map((m) => buildMatchHeadline(m, teamsById.get(m.homeTeamId), teamsById.get(m.awayTeamId)))
+    .map((m) => buildMatchHeadline(m, teamsById.get(m.homeTeamId), teamsById.get(m.awayTeamId), customPhrasePools))
     .filter((h): h is NonNullable<typeof h> => h !== null)
     .slice(0, 6);
 
-  // La foto de cada noticia es el comprobante real que subió el equipo al
-  // cerrar el partido (ver uploadMatchProofAction); si no hay (ej: cerrado
-  // por walkover), la tarjeta queda con el espacio vacío para la foto.
+  // La foto de cada noticia sale al azar (determinístico por partido) del
+  // banco que sube el admin en /admin; si el banco está vacío, cae de
+  // nuevo al comprobante real que subió el equipo al cerrar el partido.
+  const newsPhotoPool = await getNewsPhotoPool();
   const photosByMatchId = new Map(
-    await Promise.all(headlines.map(async (h) => [h.matchId, await getMatchProofImage(h.matchId)] as const)),
+    await Promise.all(
+      headlines.map(async (h) => {
+        if (newsPhotoPool.length > 0) {
+          return [h.matchId, newsPhotoPool[hashString(h.matchId) % newsPhotoPool.length]] as const;
+        }
+        return [h.matchId, await getMatchProofImage(h.matchId)] as const;
+      }),
+    ),
   );
 
   return (

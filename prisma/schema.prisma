@@ -202,6 +202,54 @@ model Player {
   @@index([teamId])
 }
 
+// ============================================================
+// PANEL DE NOTICIAS (/admin) — login real de usuario/clave, separado del
+// nombre-admin liviano que usa el resto de la app (ver ADMIN_ALLOWLIST en
+// src/lib/actions.ts). Acá el admin controla el banco de frases y fotos
+// que se combinan al azar para armar el titular de cada resultado.
+// ============================================================
+
+/// Cuenta de administrador del panel de noticias. Se crea una sola vez
+/// (bootstrap: solo funciona si todavía no existe ninguna) desde /admin.
+model AdminUser {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+enum NewsCategory {
+  BLOWOUT // goleada (diferencia >= 3)
+  COMFORTABLE // victoria cómoda (diferencia == 2)
+  NARROW // victoria ajustada (diferencia == 1)
+  DRAW // empate
+  FORFEIT // walkover / incomparecencia
+}
+
+/// Plantilla de titular para una categoría de resultado. Placeholders:
+/// {W}/{L}/{WS}/{LS} (ganador/perdedor/goles) para BLOWOUT/COMFORTABLE/
+/// NARROW/FORFEIT (FORFEIT no usa {WS}/{LS}), {A}/{B}/{S} para DRAW.
+/// Si una categoría tiene al menos una fila acá, reemplaza por completo a
+/// las plantillas por defecto de src/lib/headlines.ts para esa categoría.
+model NewsPhrase {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  category  NewsCategory
+  template  String
+  createdAt DateTime     @default(now())
+
+  @@index([category])
+}
+
+/// Banco de fotos para las tarjetas de noticias, subidas por el admin
+/// (data URL base64, mismo enfoque que Match.proofImageData). Se elige una
+/// al azar (determinístico por partido) para cada resultado; si el banco
+/// está vacío, la tarjeta cae de nuevo al comprobante real del partido.
+model NewsPhoto {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  imageData String
+  createdAt DateTime @default(now())
+}
+
 enum DayOfWeek {
   MONDAY
   TUESDAY

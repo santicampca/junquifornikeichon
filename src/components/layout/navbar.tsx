@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Trophy, Users } from "lucide-react";
+import { ShieldCheck, Trophy, Users } from "lucide-react";
 import { AdminLogin } from "@/components/admin/admin-login";
 import { TeamLogin } from "@/components/team-auth/team-login";
 import type { Team } from "@/types/domain";
@@ -40,6 +40,14 @@ export function Navbar({
           <div className="ml-2 flex items-center gap-1 border-l border-border pl-2">
             <TeamLogin teams={teams} />
             <AdminLogin />
+            <Link
+              href="/admin"
+              title="Panel de noticias"
+              aria-label="Panel de noticias"
+              className="flex items-center rounded-md p-1.5 text-muted-strong transition-colors hover:bg-surface-elevated hover:text-foreground"
+            >
+              <ShieldCheck className="size-4" />
+            </Link>
           </div>
         </nav>
       </div>

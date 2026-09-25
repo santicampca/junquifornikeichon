@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import type {
   CompetitionStage,
   Match,
+  NewsCategory,
+  NewsPhoto,
+  NewsPhrase,
   Player,
   StageParticipant,
   Team,
@@ -229,4 +232,45 @@ export const getTeamPlayers = cache(async (teamId: string): Promise<Player[]> =>
     number: p.number ?? undefined,
     position: p.position ?? undefined,
   }));
+});
+
+// ============================================================
+// PANEL DE NOTICIAS (/admin): banco de frases y fotos
+// ============================================================
+
+/** True si ya existe una cuenta del panel /admin (para saber si mostrar el bootstrap o el login). */
+export const hasAdminUser = cache(async (): Promise<boolean> => {
+  return (await prisma.adminUser.count()) > 0;
+});
+
+/**
+ * Plantillas de titular agrupadas por categoría, listas para pasarle a
+ * `buildMatchHeadline` (src/lib/headlines.ts). Liviano: solo el texto, sin
+ * ids — se usa en cada carga del dashboard.
+ */
+export const getNewsPhrasePools = cache(async (): Promise<Partial<Record<NewsCategory, string[]>>> => {
+  const rows = await prisma.newsPhrase.findMany({ select: { category: true, template: true } });
+  const pools: Partial<Record<NewsCategory, string[]>> = {};
+  for (const r of rows) {
+    (pools[r.category] ??= []).push(r.template);
+  }
+  return pools;
+});
+
+/** Fotos subidas por el admin para las tarjetas de noticias (banco general, sin categorizar). */
+export const getNewsPhotoPool = cache(async (): Promise<string[]> => {
+  const rows = await prisma.newsPhoto.findMany({ select: { imageData: true } });
+  return rows.map((r) => r.imageData);
+});
+
+/** Listado completo (con id) para el panel de administración de frases. */
+export const getNewsPhrasesForAdmin = cache(async (): Promise<NewsPhrase[]> => {
+  const rows = await prisma.newsPhrase.findMany({ orderBy: { createdAt: "desc" } });
+  return rows.map((r) => ({ id: r.id, category: r.category, template: r.template }));
+});
+
+/** Listado completo (con id e imagen) para el panel de administración de fotos. */
+export const getNewsPhotosForAdmin = cache(async (): Promise<NewsPhoto[]> => {
+  const rows = await prisma.newsPhoto.findMany({ orderBy: { createdAt: "desc" } });
+  return rows.map((r) => ({ id: r.id, imageData: r.imageData }));
 });
