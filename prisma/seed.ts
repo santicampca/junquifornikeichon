@@ -53,7 +53,11 @@ async function main() {
     console.warn(`Aviso: ${conflicts.length} partido(s) no se pudieron programar automáticamente:`, conflicts);
   }
 
-  const { tournamentSlug } = await persistTournamentState(state, { isActive: true });
+  const { tournamentSlug } = await persistTournamentState(state, {
+    isActive: true,
+    weeklySlots: WEEKLY_SLOTS,
+    doubleRound: true,
+  });
 
   const totalMatches = Object.values(state.matchesByStage).reduce((sum, ms) => sum + ms.length, 0);
   console.log(

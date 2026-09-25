@@ -7,6 +7,7 @@ import { getActiveTournamentState } from "@/lib/data";
 import { persistTournamentState } from "@/lib/persist-tournament";
 import { createTournamentState, type CreateTournamentInput, type CreateTournamentConflict } from "@/lib/tournament-factory";
 import { computeStandings, mergeStandings } from "@/lib/standings";
+import { generateRoundRobin, scheduleMatchdays } from "@/lib/fixtures";
 import {
   MAX_ROSTER_SIZE,
   MAX_PLAYERS_PER_POSITION,
@@ -37,6 +38,16 @@ function assertAdmin(adminName: string) {
     throw new Error("No tenés permisos de administrador para hacer esto.");
   }
 }
+
+// Helpers para las acciones nuevas de esta sección: devuelven { success,
+// message } en vez de tirar un `throw` (ver el comentario largo al
+// respecto en src/lib/admin-cms-actions.ts) para no perder el mensaje real
+// por la redacción de producción de Next.js.
+function fail(message: string): { success: false; message: string } {
+  return { success: false, message };
+}
+
+const ok: ActionResult = { success: true };
 
 /**
  * Pone todos los partidos del torneo activo en su estado inicial: borra
@@ -127,6 +138,99 @@ export async function updateTournamentNameAction(adminName: string, tournamentId
   revalidatePath("/", "layout");
 }
 
+/** Actualiza el reglamento (texto libre) que se muestra en la pestaña "Reglas". */
+export async function updateTournamentRulesAction(
+  adminName: string,
+  tournamentId: string,
+  rules: string,
+): Promise<ActionResult> {
+  try {
+    assertAdmin(adminName);
+    const trimmed = rules.trim();
+    if (trimmed.length > 5000) return fail("El reglamento es demasiado largo (máximo 5000 caracteres).");
+
+    await prisma.tournament.update({ where: { id: tournamentId }, data: { rules: trimmed || null } });
+    revalidatePath("/", "layout");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo guardar el reglamento.");
+  }
+}
+
+// ============================================================
+// CALENDARIO DEL CLAUSURA (generado a mano, no al crear el torneo)
+// ============================================================
+
+export type GenerateClausuraOutcome =
+  | { success: true; conflictsCount: number; warnings: string[] }
+  | { success: false; message: string };
+
+/**
+ * Genera el calendario del Clausura a partir de la fecha de inicio que
+ * elige el admin, reusando la plantilla semanal y el formato (ida/vuelta)
+ * que se guardaron al crear el torneo (`Tournament.weeklySlots`/`doubleRound`
+ * — ver persist-tournament.ts). Solo funciona si la fase todavía no tiene
+ * partidos generados.
+ */
+export async function generateClausuraCalendarAction(
+  adminName: string,
+  stageId: string,
+  seasonStart: string,
+): Promise<GenerateClausuraOutcome> {
+  try {
+    assertAdmin(adminName);
+
+    const state = await getActiveTournamentState();
+    if (!state) return fail("No hay torneo activo.");
+
+    const stage = state.stages.find((s) => s.id === stageId);
+    if (!stage || stage.type !== "CLAUSURA") return fail("Esa fase no es del Clausura.");
+
+    const existing = await prisma.match.count({ where: { stageId } });
+    if (existing > 0) return fail("El Clausura ya tiene un calendario generado.");
+
+    const start = new Date(seasonStart);
+    if (Number.isNaN(start.getTime())) return fail("Fecha inválida.");
+
+    const tournament = await prisma.tournament.findUnique({ where: { id: state.tournament.id } });
+    if (!tournament || tournament.weeklySlots.length === 0) {
+      return fail("Este torneo no tiene una plantilla semanal guardada; no se puede generar el calendario automáticamente.");
+    }
+
+    const teamIds = state.teams.map((t) => t.id);
+    const fixture = generateRoundRobin(teamIds, { doubleRound: tournament.doubleRound });
+    const { scheduled, conflicts, warnings } = scheduleMatchdays(fixture, {
+      seasonStart: start,
+      weeklySlots: tournament.weeklySlots.map((s) => ({ day: s.day, matchesPerDay: s.matchesPerDay })),
+      availability: state.teamAvailability,
+    });
+
+    await prisma.match.createMany({
+      data: scheduled.map((m) => ({
+        stageId,
+        homeTeamId: m.homeTeamId,
+        awayTeamId: m.awayTeamId,
+        scheduledAt: m.scheduledAt,
+        dayOfWeek: m.dayOfWeek,
+        round: `Jornada ${m.round}`,
+        status: "SCHEDULED",
+        isMandatorySundayMatch: m.isMandatorySundayMatch,
+      })),
+    });
+
+    await prisma.stageParticipant.createMany({
+      data: teamIds.map((teamId) => ({ stageId, teamId })),
+    });
+
+    await prisma.competitionStage.update({ where: { id: stageId }, data: { status: "SCHEDULED", startDate: start } });
+
+    revalidatePath("/", "layout");
+    return { success: true, conflictsCount: conflicts.length, warnings };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo generar el calendario del Clausura.");
+  }
+}
+
 export interface CreateTournamentOutcome {
   tournamentSlug: string;
   conflicts: CreateTournamentConflict[];
@@ -147,7 +251,11 @@ export async function createTournamentAction(
   const { state, conflicts, warnings } = createTournamentState(input);
 
   await prisma.tournament.updateMany({ where: { isActive: true }, data: { isActive: false } });
-  const { tournamentSlug } = await persistTournamentState(state, { isActive: true });
+  const { tournamentSlug } = await persistTournamentState(state, {
+    isActive: true,
+    weeklySlots: input.weeklySlots,
+    doubleRound: input.doubleRound,
+  });
 
   revalidatePath("/", "layout");
 
@@ -752,5 +860,43 @@ export async function setTeamLineupAction(
     return { success: true };
   } catch (err) {
     return { success: false, message: err instanceof Error ? err.message : "No se pudo guardar la alineación." };
+  }
+}
+
+// ============================================================
+// PALMARÉS: títulos históricos por equipo. Ver comentario largo sobre
+// teamSlug/teamName (en vez de una relación a Team) en prisma/schema.prisma.
+// ============================================================
+
+export async function addChampionAction(
+  adminName: string,
+  input: { teamSlug: string; teamName: string; year: number; title: string },
+): Promise<ActionResult> {
+  try {
+    assertAdmin(adminName);
+    if (!input.teamSlug || !input.teamName.trim()) return fail("Elegí un equipo.");
+    if (!Number.isInteger(input.year) || input.year < 2000 || input.year > 2100) return fail("Año inválido.");
+    const title = input.title.trim();
+    if (!title) return fail("Poné un título (ej: Apertura, Clausura, Supercopa, Playoffs).");
+    if (title.length > 60) return fail("El título es demasiado largo (máximo 60 caracteres).");
+
+    await prisma.champion.create({
+      data: { teamSlug: input.teamSlug, teamName: input.teamName.trim(), year: input.year, title },
+    });
+    revalidatePath("/", "layout");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo guardar el título.");
+  }
+}
+
+export async function deleteChampionAction(adminName: string, id: string): Promise<ActionResult> {
+  try {
+    assertAdmin(adminName);
+    await prisma.champion.delete({ where: { id } });
+    revalidatePath("/", "layout");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo eliminar el título.");
   }
 }

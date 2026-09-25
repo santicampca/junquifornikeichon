@@ -5,14 +5,21 @@ import { StageTabs } from "@/components/tournaments/stage-tabs";
 import { StandingsTable } from "@/components/standings/standings-table";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Card, CardContent } from "@/components/ui/card";
 import { ResetTournamentButton } from "@/components/admin/reset-tournament-button";
 import { DeleteTournamentButton } from "@/components/admin/delete-tournament-button";
 import { EditTournamentName } from "@/components/admin/edit-tournament-name";
+import { EditTournamentRules } from "@/components/admin/edit-tournament-rules";
 import { GeneratePlayoffsButton } from "@/components/admin/generate-playoffs-button";
+import { GenerateClausuraButton } from "@/components/admin/generate-clausura-button";
 import { StageLineupModeSelector } from "@/components/admin/stage-lineup-mode-selector";
+import { PalmaresPanel } from "@/components/tournaments/palmares-panel";
 import { computeStandings, mergeStandings } from "@/lib/standings";
-import { getActiveTournamentState } from "@/lib/data";
+import { getActiveTournamentState, getChampions } from "@/lib/data";
 import type { Match } from "@/types/domain";
+
+const SPECIAL_TABS = ["reglas", "palmares"] as const;
+type SpecialTab = (typeof SPECIAL_TABS)[number];
 
 export default async function TournamentPage(props: PageProps<"/torneos/[slug]">) {
   const { slug } = await props.params;
@@ -24,6 +31,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
   const { tournament, teams, stages, matchesByStage, stageParticipants } = state;
   const teamIds = teams.map((t) => t.id);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
+  const champions = await getChampions();
 
   function adjustmentsForStage(stageId: string): Record<string, number> {
     return Object.fromEntries(
@@ -31,8 +39,13 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
     );
   }
 
+  const faseParam = Array.isArray(fase) ? fase[0] : fase;
+  const specialTab: SpecialTab | null = (SPECIAL_TABS as readonly string[]).includes(faseParam ?? "")
+    ? (faseParam as SpecialTab)
+    : null;
+
   const activeStage =
-    stages.find((s) => s.id === fase) ?? stages.find((s) => s.type === "APERTURA") ?? stages[0];
+    stages.find((s) => s.id === faseParam) ?? stages.find((s) => s.type === "APERTURA") ?? stages[0];
 
   const isGeneral = activeStage.type === "GENERAL";
   const ownMatches: Match[] = matchesByStage[activeStage.id] ?? [];
@@ -70,9 +83,11 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
               name={tournament.name}
               className="text-xl font-bold tracking-tight text-foreground"
             />
-            <p className="text-sm text-muted">{activeStage.name}</p>
+            <p className="text-sm text-muted">
+              {specialTab === "reglas" ? "Reglas del torneo" : specialTab === "palmares" ? "Palmarés" : activeStage.name}
+            </p>
           </div>
-          <StageLineupModeSelector stageId={activeStage.id} mode={activeStage.lineupMode} />
+          {!specialTab && <StageLineupModeSelector stageId={activeStage.id} mode={activeStage.lineupMode} />}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -88,23 +103,46 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
       </div>
 
       <div className="mb-6">
-        <StageTabs tournamentSlug={tournament.slug} stages={stages} activeStageId={activeStage.id} />
+        <StageTabs
+          tournamentSlug={tournament.slug}
+          stages={stages}
+          activeStageId={specialTab ?? activeStage.id}
+          extraTabs={[
+            { id: "reglas", label: "Reglas" },
+            { id: "palmares", label: "Palmarés" },
+          ]}
+        />
       </div>
 
-      {!hasParticipants ? (
+      {specialTab === "reglas" ? (
+        <Card>
+          <CardContent>
+            <EditTournamentRules tournamentId={tournament.id} rules={tournament.rules} />
+          </CardContent>
+        </Card>
+      ) : specialTab === "palmares" ? (
+        <PalmaresPanel champions={champions} teams={teams} />
+      ) : !hasParticipants ? (
         <div className="space-y-4">
           <EmptyState
             icon={CalendarClock}
             title="Fase aún no definida"
             description={
               activeStage.type === "PLAYOFFS"
-                ? "Eliminación directa top 4 sobre la Tabla General: 1° vs 4°, 2° vs 3°. Se genera a mano cuando termine la liga."
-                : "La Supercopa se juega entre el campeón del Apertura y el campeón del Clausura. Se habilitará al finalizar ambas fases."
+                ? "Eliminación directa top 8 sobre la Tabla General: 1° vs 8°, 4° vs 5°, 2° vs 7°, 3° vs 6°. Se genera a mano cuando termine la liga."
+                : activeStage.type === "CLAUSURA"
+                  ? "El calendario del Clausura se genera a mano cuando quieras: elegí la fecha de inicio."
+                  : "La Supercopa se juega entre el campeón del Apertura y el campeón del Clausura. Se habilitará al finalizar ambas fases."
             }
           />
           {activeStage.type === "PLAYOFFS" && (
             <div className="flex justify-center">
               <GeneratePlayoffsButton stageId={activeStage.id} matches={ownMatches} />
+            </div>
+          )}
+          {activeStage.type === "CLAUSURA" && (
+            <div className="flex justify-center">
+              <GenerateClausuraButton stageId={activeStage.id} />
             </div>
           )}
         </div>

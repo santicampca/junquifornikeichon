@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { TournamentState } from "@/types/domain";
+import type { DayOfWeek, TournamentState } from "@/types/domain";
 
 /**
  * Persiste un `TournamentState` armado en memoria (por `createTournamentState`,
@@ -10,7 +10,16 @@ import type { TournamentState } from "@/types/domain";
  */
 export async function persistTournamentState(
   state: TournamentState,
-  { isActive = true }: { isActive?: boolean } = {},
+  {
+    isActive = true,
+    weeklySlots = [],
+    doubleRound = false,
+  }: {
+    isActive?: boolean;
+    /** Plantilla semanal elegida al crear el torneo; se guarda para reusarla al generar el Clausura más adelante. */
+    weeklySlots?: { day: DayOfWeek; matchesPerDay: number }[];
+    doubleRound?: boolean;
+  } = {},
 ): Promise<{ tournamentId: string; tournamentSlug: string }> {
   const tournament = await prisma.tournament.create({
     data: {
@@ -18,6 +27,8 @@ export async function persistTournamentState(
       slug: state.tournament.slug,
       description: state.tournament.description,
       isActive,
+      weeklySlots,
+      doubleRound,
     },
   });
 
@@ -83,11 +94,13 @@ export async function persistTournamentState(
     });
   }
 
-  // Todos los equipos participan de las fases con partidos propios de entrada
-  // (Apertura/Clausura); Supercopa y Playoffs arrancan sin nadie inscripto
-  // porque sus participantes se deciden después (campeones / top 4).
+  // Todos los equipos participan del Apertura de entrada; Clausura,
+  // Supercopa y Playoffs arrancan sin nadie inscripto porque sus partidos
+  // (y por lo tanto sus participantes) se generan después: Clausura a mano
+  // con fecha elegida (ver generateClausuraCalendarAction), Supercopa/Playoffs
+  // según campeones / tabla general.
   for (const s of state.stages) {
-    if (s.type === "GENERAL" || s.type === "SUPERCOPA" || s.type === "PLAYOFFS") continue;
+    if (s.type === "GENERAL" || s.type === "SUPERCOPA" || s.type === "PLAYOFFS" || s.type === "CLAUSURA") continue;
     await prisma.stageParticipant.createMany({
       data: state.teams.map((t) => ({ stageId: stageIdMap.get(s.id)!, teamId: teamIdMap.get(t.id)! })),
     });

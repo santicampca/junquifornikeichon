@@ -30,8 +30,6 @@ export interface CreateTournamentInput {
    * a la semana siguiente.
    */
   seasonStart: string;
-  /** Semanas de receso entre el fin del Apertura y el inicio del Clausura. */
-  breakWeeksBetweenStages?: number;
   includeSupercopa?: boolean;
   /**
    * Agrega una fase de Playoffs (DRAFT, sin partidos): eliminación directa
@@ -102,9 +100,13 @@ function buildStageFixture(
 }
 
 /**
- * Arma un torneo nuevo desde cero: equipos, restricciones, fases
- * (Apertura, Clausura, General y opcionalmente Supercopa) y su calendario
- * completo (sin resultados cargados). Usa el mismo motor de fixtures que
+ * Arma un torneo nuevo desde cero: equipos, restricciones, fases (Apertura,
+ * Clausura, General y opcionalmente Supercopa/Playoffs) y el calendario del
+ * Apertura (sin resultados cargados). El Clausura queda DRAFT y sin
+ * partidos: su calendario se genera a mano más adelante (ver
+ * generateClausuraCalendarAction en src/lib/actions.ts), porque su fecha de
+ * inicio depende de cuándo termine el Apertura en la práctica, no de una
+ * cuenta adivinada al crear el torneo. Usa el mismo motor de fixtures que
  * los datos de demo (`generateRoundRobin` + `scheduleMatchdays`).
  */
 export function createTournamentState(input: CreateTournamentInput): CreateTournamentResult {
@@ -157,11 +159,11 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
   const aperturaId = generateId("stage");
   const apertura = buildStageFixture(aperturaId, "Apertura", teamIds, input, teamAvailability, aperturaStart);
 
-  const breakWeeks = input.breakWeeksBetweenStages ?? 3;
-  const clausuraStart = new Date(aperturaStart);
-  clausuraStart.setUTCDate(clausuraStart.getUTCDate() + (apertura.roundsCount - 1) * 7 + breakWeeks * 7);
+  // El Clausura NO arma su calendario acá: queda DRAFT y sin partidos, igual
+  // que Supercopa/Playoffs. El admin lo activa a mano cuando quiere, eligiendo
+  // la fecha de inicio (ver generateClausuraCalendarAction en actions.ts),
+  // en vez de que se genere solo con una fecha adivinada al crear el torneo.
   const clausuraId = generateId("stage");
-  const clausura = buildStageFixture(clausuraId, "Clausura", teamIds, input, teamAvailability, clausuraStart);
 
   const generalId = generateId("stage");
   const stages: CompetitionStage[] = [
@@ -180,7 +182,7 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
       name: `Torneo Clausura`,
       type: "CLAUSURA",
       format,
-      status: "SCHEDULED",
+      status: "DRAFT",
       points,
     },
     {
@@ -197,7 +199,7 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
 
   const matchesByStage: Record<string, Match[]> = {
     [aperturaId]: apertura.matches,
-    [clausuraId]: clausura.matches,
+    [clausuraId]: [],
     [generalId]: [],
   };
 
@@ -233,7 +235,7 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
     // Sin ajustes de puntos todavía: recién se crea el torneo. persist-tournament.ts
     // arma los StageParticipant reales (en 0) directo desde `teams`/`stages`.
     state: { tournament, teams, teamAvailability, stages, matchesByStage, stageParticipants: [] },
-    conflicts: [...apertura.conflicts, ...clausura.conflicts],
-    warnings: [...apertura.warnings, ...clausura.warnings],
+    conflicts: apertura.conflicts,
+    warnings: apertura.warnings,
   };
 }

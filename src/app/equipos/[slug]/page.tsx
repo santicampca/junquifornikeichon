@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { Trophy } from "lucide-react";
 import { TeamBadge } from "@/components/teams/team-badge";
 import { TeamRoster } from "@/components/teams/team-roster";
 import { TeamLineupEditor } from "@/components/teams/team-lineup-editor";
@@ -6,7 +8,7 @@ import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeStandings } from "@/lib/standings";
-import { getActiveTournamentState, getTeamPlayers, getTeamLineups } from "@/lib/data";
+import { getActiveTournamentState, getTeamPlayers, getTeamLineups, getChampionsForTeam } from "@/lib/data";
 
 export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]">) {
   const { slug } = await props.params;
@@ -14,7 +16,11 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
   const team = state?.teams.find((t) => t.slug === slug);
   if (!state || !team) notFound();
 
-  const [players, lineups] = await Promise.all([getTeamPlayers(team.id), getTeamLineups(team.id)]);
+  const [players, lineups, champions] = await Promise.all([
+    getTeamPlayers(team.id),
+    getTeamLineups(team.id),
+    getChampionsForTeam(team.slug),
+  ]);
 
   const { teams, stages, matchesByStage, stageParticipants } = state;
   const teamsById = new Map(teams.map((t) => [t.id, t]));
@@ -52,6 +58,24 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
           <p className="text-sm text-muted">DT/Mánager: {team.managerName}</p>
         </div>
       </div>
+
+      {champions.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Palmarés</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {champions.map((c) => (
+              <Link
+                key={c.id}
+                href={`/torneos/${state.tournament.slug}?fase=palmares`}
+                className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/15"
+              >
+                <Trophy className="size-3.5" />
+                {c.title} {c.year}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile label="PJ" value={overall?.played ?? 0} />

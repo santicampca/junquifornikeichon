@@ -34,9 +34,26 @@ model Tournament {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  /// Reglamento en texto libre, editable por el admin (ver updateTournamentRulesAction
+  /// en src/lib/actions.ts). Se muestra en la pestaña "Reglas" del torneo.
+  rules String?
+
+  /// Plantilla semanal y formato (ida/vuelta) elegidos al crear el torneo.
+  /// El Clausura ya NO arma su calendario solo al crear el torneo (ver
+  /// generateClausuraCalendarAction): el admin lo activa a mano cuando
+  /// quiere, eligiendo la fecha de inicio, y ese momento reusa esta misma
+  /// plantilla en vez de pedirla de nuevo.
+  weeklySlots TournamentWeeklySlot[]
+  doubleRound Boolean                @default(false)
+
   seasons          Season[]
   teams            Team[]
   teamAvailability TeamAvailability[]
+}
+
+type TournamentWeeklySlot {
+  day           DayOfWeek
+  matchesPerDay Int
 }
 
 /// Una Temporada agrupa las fases de competición de un mismo ciclo (ej: "2026").
@@ -233,6 +250,29 @@ model TeamLineup {
 
   @@unique([teamId, mode])
   @@index([teamId])
+}
+
+// ============================================================
+// PALMARÉS: títulos históricos por equipo (Apertura/Clausura/Supercopa/
+// Playoffs de un año concreto), gestionados a mano por el admin liviano
+// (el mismo de assertAdmin en src/lib/actions.ts, no el panel /admin de
+// noticias). Se identifica al equipo por slug/nombre (snapshot, no relación
+// a Team): un torneo nuevo crea documentos Team nuevos aunque el equipo sea
+// "el mismo" de siempre (ver persist-tournament.ts), así que atar esto a un
+// Team._id concreto haría que el título "desaparezca" apenas se recrea el
+// torneo. El perfil de un equipo (src/app/equipos/[slug]/page.tsx) filtra
+// por su propio slug para mostrar su palmarés.
+// ============================================================
+
+model Champion {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  teamSlug  String
+  teamName  String
+  year      Int
+  title     String // ej: "Apertura", "Clausura", "Supercopa", "Playoffs"
+  createdAt DateTime @default(now())
+
+  @@index([teamSlug])
 }
 
 // ============================================================

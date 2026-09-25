@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type {
+  Champion,
   CompetitionStage,
   LineupMode,
   Match,
@@ -156,6 +157,7 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
       slug: tournament.slug,
       logoUrl: tournament.logoUrl ?? undefined,
       description: tournament.description ?? undefined,
+      rules: tournament.rules ?? undefined,
     },
     teams,
     teamAvailability,
@@ -307,4 +309,27 @@ export const getNewsPhrasesForAdmin = cache(async (): Promise<NewsPhrase[]> => {
 export const getNewsPhotosForAdmin = cache(async (): Promise<NewsPhoto[]> => {
   const rows = await prisma.newsPhoto.findMany({ orderBy: { createdAt: "desc" } });
   return rows.map((r) => ({ id: r.id, imageData: r.imageData, phraseId: r.phraseId ?? undefined }));
+});
+
+// ============================================================
+// PALMARÉS: títulos históricos por equipo (ver Champion en prisma/schema.prisma)
+// ============================================================
+
+function mapChampion(r: { id: string; teamSlug: string; teamName: string; year: number; title: string }): Champion {
+  return { id: r.id, teamSlug: r.teamSlug, teamName: r.teamName, year: r.year, title: r.title };
+}
+
+/** Palmarés completo del torneo (todas las fases/años), para la pestaña "Palmarés". */
+export const getChampions = cache(async (): Promise<Champion[]> => {
+  const rows = await prisma.champion.findMany({ orderBy: [{ year: "desc" }, { createdAt: "desc" }] });
+  return rows.map(mapChampion);
+});
+
+/** Palmarés de un equipo puntual (por slug), para su perfil. */
+export const getChampionsForTeam = cache(async (teamSlug: string): Promise<Champion[]> => {
+  const rows = await prisma.champion.findMany({
+    where: { teamSlug },
+    orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+  });
+  return rows.map(mapChampion);
 });

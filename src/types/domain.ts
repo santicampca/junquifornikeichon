@@ -55,6 +55,23 @@ export interface Tournament {
   slug: string;
   logoUrl?: string;
   description?: string;
+  /** Reglamento en texto libre, editable por el admin. Ver src/lib/actions.ts. */
+  rules?: string;
+}
+
+/**
+ * Entrada de palmarés: un equipo campeón de una fase concreta en un año
+ * concreto (ej: "Apertura" 2026). Identificado por slug/nombre (snapshot),
+ * no por relación a un Team._id concreto: ver comentario en
+ * prisma/schema.prisma sobre por qué (los equipos se recrean con cada
+ * torneo nuevo).
+ */
+export interface Champion {
+  id: string;
+  teamSlug: string;
+  teamName: string;
+  year: number;
+  title: string;
 }
 
 export interface Season {
