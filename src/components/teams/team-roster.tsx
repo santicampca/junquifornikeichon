@@ -15,20 +15,14 @@ interface PlayerFormState {
   name: string;
   number: string;
   position: string;
-  goals: string;
 }
 
 function emptyForm(): PlayerFormState {
-  return { name: "", number: "", position: "", goals: "" };
+  return { name: "", number: "", position: "" };
 }
 
 function toFormState(player: Player): PlayerFormState {
-  return {
-    name: player.name,
-    number: player.number?.toString() ?? "",
-    position: player.position ?? "",
-    goals: player.goals ? player.goals.toString() : "",
-  };
+  return { name: player.name, number: player.number?.toString() ?? "", position: player.position ?? "" };
 }
 
 export function TeamRoster({ teamId, players }: { teamId: string; players: Player[] }) {
@@ -60,7 +54,6 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
       name: form.name.trim(),
       number: form.number.trim() ? Number(form.number) : undefined,
       position: form.position.trim() || undefined,
-      goals: form.goals.trim() ? Number(form.goals) : 0,
     };
   }
 
@@ -155,13 +148,6 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                     );
                   })}
                 </select>
-                <input
-                  value={editForm.goals}
-                  onChange={(e) => setEditForm((f) => ({ ...f, goals: e.target.value }))}
-                  placeholder="Goles"
-                  inputMode="numeric"
-                  className={cn(inputClass, "w-16 text-center")}
-                />
                 <button
                   type="submit"
                   disabled={submitting}
@@ -261,13 +247,6 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                 </option>
               ))}
             </select>
-            <input
-              value={addForm.goals}
-              onChange={(e) => setAddForm((f) => ({ ...f, goals: e.target.value }))}
-              placeholder="Goles"
-              inputMode="numeric"
-              className={cn(inputClass, "w-16 text-center")}
-            />
             <button
               type="submit"
               disabled={submitting || !addForm.name.trim() || rosterFull}

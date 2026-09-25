@@ -222,13 +222,27 @@ model Player {
   number    Int?
   position  String? // ej: "Portero", "Defensa", "Mediocampista", "Delantero"
   birthDate DateTime?
-  /// Total de goles en la temporada (contador manual, cargado desde la
-  /// plantilla del equipo — no está atado a partidos concretos). Alimenta
-  /// la pestaña "Goleadores" del torneo.
+  /// Total de goles en la temporada. NO se edita a mano: lo arma
+  /// finishMatchAction sorteando quién los metió cada vez que se cierra un
+  /// partido (ver MatchGoal más abajo). Alimenta la pestaña "Goleadores".
   goals     Int       @default(0)
   createdAt DateTime  @default(now())
 
   @@index([teamId])
+}
+
+/// Registra qué jugador se llevó (cuántos de) los goles de un partido
+/// concreto, para poder deshacer la asignación limpiamente si el resultado
+/// se corrige (ver undoMatchGoals/assignMatchGoals en src/lib/actions.ts) —
+/// si no, corregir un marcador sumaría goles de más sobre los ya asignados.
+model MatchGoal {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  matchId  String @db.ObjectId
+  playerId String @db.ObjectId
+  count    Int
+
+  @@unique([matchId, playerId])
+  @@index([matchId])
 }
 
 enum LineupMode {

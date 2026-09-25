@@ -71,6 +71,15 @@ export async function resetTournamentAction(adminName: string): Promise<void> {
 
   const stageIds = state.stages.map((s) => s.id);
 
+  // Deshace la lotería de goleadores (ver assignMatchGoals más abajo) de
+  // cada partido antes de borrar sus marcadores: si no, "Goleadores" se
+  // quedaría con los goles de una liga que se está reiniciando.
+  const matchesToReset = await prisma.match.findMany({
+    where: { stageId: { in: stageIds } },
+    select: { id: true },
+  });
+  await Promise.all(matchesToReset.map((m) => undoMatchGoals(m.id)));
+
   await prisma.match.updateMany({
     where: { stageId: { in: stageIds } },
     data: {
@@ -343,11 +352,13 @@ export async function adjustStagePointsAction(
 // PLANTILLA DE JUGADORES (CRUD)
 // ============================================================
 
+// `goals` no es parte del input de este CRUD a propósito: no se edita a
+// mano, lo arma la lotería de goleadores al cerrar un partido (ver
+// finishMatchAction / assignMatchGoals más abajo).
 export interface PlayerInput {
   name: string;
   number?: number;
   position?: string;
-  goals?: number;
 }
 
 function assertValidPlayerInput(input: PlayerInput) {
@@ -357,9 +368,6 @@ function assertValidPlayerInput(input: PlayerInput) {
   }
   if (input.position && !(PLAYER_POSITIONS as readonly string[]).includes(input.position)) {
     throw new Error("Posición inválida.");
-  }
-  if (input.goals !== undefined && (!Number.isInteger(input.goals) || input.goals < 0)) {
-    throw new Error("Los goles deben ser un número entero no negativo.");
   }
 }
 
@@ -401,7 +409,6 @@ export async function createPlayerAction(teamId: string, input: PlayerInput): Pr
       name: input.name.trim(),
       number: input.number,
       position: input.position?.trim() || undefined,
-      goals: input.goals ?? 0,
     },
   });
 
@@ -415,13 +422,14 @@ export async function updatePlayerAction(playerId: string, input: PlayerInput): 
   if (!existing) throw new Error("Jugador no encontrado.");
   await assertRosterCapacity(existing.teamId, input.position?.trim() || undefined, playerId);
 
+  // `goals` no se toca acá (ver comentario en PlayerInput): omitirlo del
+  // `data` deja el valor actual intacto en vez de resetearlo a 0.
   await prisma.player.update({
     where: { id: playerId },
     data: {
       name: input.name.trim(),
       number: input.number,
       position: input.position?.trim() || undefined,
-      goals: input.goals ?? 0,
     },
   });
 
@@ -506,6 +514,74 @@ export async function uploadMatchProofAction(adminName: string, matchId: string,
   revalidatePath("/", "layout");
 }
 
+// ============================================================
+// LOTERÍA DE GOLEADORES: los jugadores son ficticios (no existe un acta real
+// de quién metió cada gol), así que al cerrar un partido se sortea quién se
+// lleva cada gol de cada equipo, pesado por posición: 5% Portero, 15%
+// Defensa, 30% Mediocampista, 50% Delantero. Se guarda en MatchGoal (ver
+// prisma/schema.prisma) para poder deshacerlo si el resultado se corrige.
+// ============================================================
+
+const SCORER_WEIGHT_BY_POSITION: Record<string, number> = {
+  Portero: 5,
+  Defensa: 15,
+  Mediocampista: 30,
+  Delantero: 50,
+};
+
+/** Elige un jugador al azar, pesado por su posición (ver SCORER_WEIGHT_BY_POSITION). */
+function pickScorer(players: { id: string; position: string | null }[]): string {
+  const weighted = players
+    .filter((p) => p.position && p.position in SCORER_WEIGHT_BY_POSITION)
+    .map((p) => ({ id: p.id, weight: SCORER_WEIGHT_BY_POSITION[p.position as string] }));
+
+  // Si nadie tiene una posición reconocida (plantel sin cargar posiciones),
+  // cae a un sorteo parejo entre todos en vez de no poder elegir a nadie.
+  const pool = weighted.length > 0 ? weighted : players.map((p) => ({ id: p.id, weight: 1 }));
+  const total = pool.reduce((sum, p) => sum + p.weight, 0);
+
+  let roll = Math.random() * total;
+  for (const p of pool) {
+    roll -= p.weight;
+    if (roll <= 0) return p.id;
+  }
+  return pool[pool.length - 1].id;
+}
+
+/** Revierte la asignación de goles de un partido (para poder recalcularla si el marcador se corrige). */
+async function undoMatchGoals(matchId: string): Promise<void> {
+  const previous = await prisma.matchGoal.findMany({ where: { matchId } });
+  if (previous.length === 0) return;
+
+  await Promise.all(
+    previous.map((g) => prisma.player.update({ where: { id: g.playerId }, data: { goals: { decrement: g.count } } })),
+  );
+  await prisma.matchGoal.deleteMany({ where: { matchId } });
+}
+
+/** Sortea los `goalCount` goles de un equipo entre su plantel y los suma a `Player.goals`. */
+async function assignMatchGoals(matchId: string, teamId: string, goalCount: number): Promise<void> {
+  if (goalCount <= 0) return;
+
+  const players = await prisma.player.findMany({ where: { teamId }, select: { id: true, position: true } });
+  if (players.length === 0) return; // plantel vacío: no hay a quién asignarle el gol
+
+  const tally = new Map<string, number>();
+  for (let i = 0; i < goalCount; i++) {
+    const scorerId = pickScorer(players);
+    tally.set(scorerId, (tally.get(scorerId) ?? 0) + 1);
+  }
+
+  await Promise.all(
+    [...tally.entries()].map(([playerId, count]) =>
+      Promise.all([
+        prisma.player.update({ where: { id: playerId }, data: { goals: { increment: count } } }),
+        prisma.matchGoal.create({ data: { matchId, playerId, count } }),
+      ]),
+    ),
+  );
+}
+
 /**
  * Cierra el acta: fija el marcador/tarjetas final y pasa el partido a
  * PLAYED. Exige que ya haya un comprobante de foto cargado (ver
@@ -513,7 +589,10 @@ export async function uploadMatchProofAction(adminName: string, matchId: string,
  * forfeit, para eso está `markForfeitAction`, que no pide comprobante.
  * La tabla de posiciones se recalcula sola en el próximo render
  * (`computeStandings` lee directo de los partidos PLAYED), no hace falta
- * ningún paso extra acá.
+ * ningún paso extra acá. Sí hace falta recalcular la lotería de goleadores
+ * (ver comentario arriba): se deshace la anterior (por si este cierre es en
+ * realidad una corrección de un resultado ya cargado) y se sortea de nuevo
+ * con el marcador final.
  */
 export async function finishMatchAction(adminName: string, matchId: string, input: MatchLiveInput): Promise<void> {
   assertAdmin(adminName);
@@ -532,6 +611,10 @@ export async function finishMatchAction(adminName: string, matchId: string, inpu
     where: { id: matchId },
     data: { ...input, status: "PLAYED" },
   });
+
+  await undoMatchGoals(matchId);
+  await assignMatchGoals(matchId, match.homeTeamId, input.homeScore);
+  await assignMatchGoals(matchId, match.awayTeamId, input.awayScore);
 
   revalidatePath("/", "layout");
 }
