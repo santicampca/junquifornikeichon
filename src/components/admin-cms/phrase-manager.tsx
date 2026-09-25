@@ -10,16 +10,16 @@ import { cn } from "@/lib/utils";
 const inputClass =
   "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary";
 
-const CATEGORIES: NewsCategory[] = ["BLOWOUT", "COMFORTABLE", "NARROW", "DRAW", "FORFEIT"];
+const CATEGORIES: NewsCategory[] = ["BLOWOUT", "COMFORTABLE", "DRAW", "FORFEIT"];
 
 // Los partidos juegan "a 3": el ganador llega justo a 3 goles, así que el
 // marcador del perdedor define el margen (ver classifyMarginCategory en
-// src/lib/headlines.ts). El resultado típico de cada categoría ayuda a
-// escribir una frase que encaje con ese marcador concreto.
+// src/lib/headlines.ts). No hay categoría "ajustada": cualquier victoria
+// que no sea 3-0 cae en cómoda. El resultado típico de cada categoría
+// ayuda a escribir una frase que encaje con ese marcador concreto.
 const CATEGORY_HELP: Record<NewsCategory, string> = {
   BLOWOUT: "Resultado típico: 3-0. Variables: {W} ganador, {L} perdedor, {WS} goles del ganador, {LS} goles del perdedor.",
-  COMFORTABLE: "Resultado típico: 3-1. Variables: {W} ganador, {L} perdedor, {WS} goles del ganador, {LS} goles del perdedor.",
-  NARROW: "Resultado típico: 3-2. Variables: {W} ganador, {L} perdedor, {WS} goles del ganador, {LS} goles del perdedor.",
+  COMFORTABLE: "Resultado típico: 3-1 (cualquier victoria que no sea 3-0). Variables: {W} ganador, {L} perdedor, {WS} goles del ganador, {LS} goles del perdedor.",
   DRAW: "Resultado típico: 2-2. Variables: {A} y {B} equipos, {S} goles (mismo para ambos).",
   FORFEIT: "Variables: {W} el que ganó por walkover, {L} el que no se presentó.",
 };

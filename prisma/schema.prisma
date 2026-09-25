@@ -321,17 +321,19 @@ model AdminUser {
   createdAt    DateTime @default(now())
 }
 
+// Sin categoría "ajustada" a propósito: el partido juega a 3 goles, así que
+// 3-2 (la única forma de un margen "ajustado" de 1) no se da en la
+// práctica — cualquier victoria que no sea 3-0 cuenta como COMFORTABLE.
 enum NewsCategory {
-  BLOWOUT // goleada (diferencia >= 3)
-  COMFORTABLE // victoria cómoda (diferencia == 2)
-  NARROW // victoria ajustada (diferencia == 1)
+  BLOWOUT // goleada (3-0)
+  COMFORTABLE // victoria cómoda (3-1, o cualquier margen que no sea goleada)
   DRAW // empate
   FORFEIT // walkover / incomparecencia
 }
 
 /// Plantilla de titular para una categoría de resultado. Placeholders:
 /// {W}/{L}/{WS}/{LS} (ganador/perdedor/goles) para BLOWOUT/COMFORTABLE/
-/// NARROW/FORFEIT (FORFEIT no usa {WS}/{LS}), {A}/{B}/{S} para DRAW.
+/// FORFEIT (FORFEIT no usa {WS}/{LS}), {A}/{B}/{S} para DRAW.
 /// Si una categoría tiene al menos una fila acá, reemplaza por completo a
 /// las plantillas por defecto de src/lib/headlines.ts para esa categoría.
 model NewsPhrase {

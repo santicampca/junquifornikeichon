@@ -24,8 +24,13 @@ export type MatchStatus =
   | "CANCELLED"
   | "WALKOVER";
 
-/** Categoría de resultado para el banco de titulares (ver src/lib/headlines.ts). */
-export type NewsCategory = "BLOWOUT" | "COMFORTABLE" | "NARROW" | "DRAW" | "FORFEIT";
+/**
+ * Categoría de resultado para el banco de titulares (ver src/lib/headlines.ts).
+ * No hay categoría "ajustada" a propósito: el partido juega a 3 goles, así
+ * que 3-2 (la única forma de que fuera "ajustado") no se da en la práctica
+ * — cualquier victoria que no sea 3-0 cuenta como COMFORTABLE.
+ */
+export type NewsCategory = "BLOWOUT" | "COMFORTABLE" | "DRAW" | "FORFEIT";
 
 export interface NewsPhrase {
   id: string;
@@ -243,7 +248,6 @@ export const STAGE_TYPE_LABEL: Record<StageType, string> = {
 export const NEWS_CATEGORY_LABEL: Record<NewsCategory, string> = {
   BLOWOUT: "Goleada",
   COMFORTABLE: "Victoria cómoda",
-  NARROW: "Victoria ajustada",
   DRAW: "Empate",
   FORFEIT: "Walkover",
 };

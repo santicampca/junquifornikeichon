@@ -22,17 +22,17 @@ const DEFAULT_POOLS: Record<NewsCategory, string[]> = {
     "{L} se fue de la cancha con el orgullo hecho pomada: {W} goleó {WS}-{LS}.",
     "{W} le rompió el orto a {L}, {WS}-{LS}, para la casa a llorar con mamá.",
   ],
+  // Incluye lo que antes eran las frases de "ajustada" (3-2): esa categoría
+  // se sacó porque no se da en la práctica (el partido juega a 3), pero las
+  // frases ya escritas para ese caso encajan igual de bien acá.
   COMFORTABLE: [
     "{W} le dio una paliza prolija a {L}: {WS}-{LS}, sin piedad ni vaselina.",
     "{L} salió a jugar y salió cagando: {W} lo pasó {WS}-{LS}.",
     "{W} no tuvo compasión: {WS}-{LS} y {L} a rezar el rosario.",
     "{L} quedó boqueando en la cancha: {W} se lo llevó puesto {WS}-{LS}.",
-  ],
-  NARROW: [
     "{W} sufrió pero se la llevó calentita: {WS}-{LS} sobre {L}.",
     "Infarto en cancha: {W} le ganó por la mínima a {L}, {WS}-{LS}, con lo puesto.",
     "{L} lo tuvo en la mano y lo dejó ir: {W} se lo robó {WS}-{LS}.",
-    "Ajustadísimo: {W} {WS}-{LS} {L}, un gol que le va a doler toda la semana a {L}.",
   ],
   DRAW: [
     "{A} y {B} se sacaron los mocos y no rompieron nada: {S}-{S}, empate de siesta.",
@@ -62,19 +62,15 @@ function fillTemplate(template: string, vars: Record<string, string | number>): 
 }
 
 /**
- * Los partidos juegan "a 3": el que gana llega justo a 3 goles, así que el
- * marcador del perdedor define solo el margen: 3-0 goleada, 3-1 cómoda,
- * 3-2 ajustada. Si el marcador no encaja con ese formato (un torneo con
- * otras reglas, un resultado atípico cargado a mano), cae a la misma
- * heurística por margen de gol de siempre.
+ * Los partidos juegan "a 3": el que gana llega justo a 3 goles, así que
+ * 3-0 es goleada y cualquier otra cosa (3-1, y en teoría 3-2, que en la
+ * práctica no se da) es cómoda. No hay categoría "ajustada": con este
+ * formato nunca hay un resultado tan al filo como para justificarla.
  */
 function classifyMarginCategory(winnerScore: number, loserScore: number): NewsCategory {
   if (winnerScore === 3 && loserScore === 0) return "BLOWOUT";
-  if (winnerScore === 3 && loserScore === 1) return "COMFORTABLE";
-  if (winnerScore === 3 && loserScore === 2) return "NARROW";
-
   const margin = winnerScore - loserScore;
-  return margin >= 3 ? "BLOWOUT" : margin === 2 ? "COMFORTABLE" : "NARROW";
+  return margin >= 3 ? "BLOWOUT" : "COMFORTABLE";
 }
 
 export interface NewsPhraseEntry {

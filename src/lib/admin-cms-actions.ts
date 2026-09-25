@@ -6,7 +6,7 @@ import { hashPin, verifyPin } from "@/lib/pin";
 import { setAdminSessionCookie, clearAdminSessionCookie, requireAdminSession } from "@/lib/admin-session";
 import type { ActionResult, NewsCategory } from "@/types/domain";
 
-const NEWS_CATEGORIES: NewsCategory[] = ["BLOWOUT", "COMFORTABLE", "NARROW", "DRAW", "FORFEIT"];
+const NEWS_CATEGORIES: NewsCategory[] = ["BLOWOUT", "COMFORTABLE", "DRAW", "FORFEIT"];
 
 // Estas acciones devuelven { success, message } en vez de tirar un `throw`:
 // en producción, un error lanzado desde una Server Action que cruza al
