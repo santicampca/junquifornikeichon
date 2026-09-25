@@ -11,7 +11,7 @@ const inputClass =
   "rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground outline-none focus:border-primary";
 
 export function TeamLogin({ teams }: { teams: Team[] }) {
-  const { session, setSession, logout } = useTeamAuth();
+  const { session, claimedTeamId, setSession, logout } = useTeamAuth();
   const [open, setOpen] = useState(false);
   const [teamId, setTeamId] = useState("");
   const [pin, setPin] = useState("");
@@ -37,6 +37,10 @@ export function TeamLogin({ teams }: { teams: Team[] }) {
 
   const selectedTeam = teams.find((t) => t.id === teamId);
   const needsPinCreation = selectedTeam ? !selectedTeam.hasPin : false;
+  // Este navegador ya reclamó un equipo antes (aunque haya hecho "Salir"):
+  // no lo deja crear el PIN de uno distinto, para que un mismo
+  // participante no termine "teniendo" dos equipos.
+  const blockedByOtherClaim = needsPinCreation && claimedTeamId !== null && teamId !== claimedTeamId;
 
   function resetForm() {
     setTeamId("");
@@ -51,12 +55,16 @@ export function TeamLogin({ teams }: { teams: Team[] }) {
       setError("Elegí tu equipo.");
       return;
     }
+    if (blockedByOtherClaim) {
+      setError("Este dispositivo ya está asociado a otro equipo; no podés crear el PIN de uno nuevo acá.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       if (needsPinCreation) {
         if (pin !== confirmPin) throw new Error("Los PIN no coinciden.");
-        const result = await setTeamPinAction(teamId, pin);
+        const result = await setTeamPinAction(teamId, pin, claimedTeamId);
         setSession(result);
       } else {
         const result = await loginTeamAction(teamId, pin);
@@ -104,7 +112,13 @@ export function TeamLogin({ teams }: { teams: Team[] }) {
               ))}
             </select>
 
-            {teamId && (
+            {teamId && blockedByOtherClaim && (
+              <p className="text-xs text-loss">
+                Este dispositivo ya está asociado a otro equipo; no podés crear el PIN de uno nuevo acá.
+              </p>
+            )}
+
+            {teamId && !blockedByOtherClaim && (
               <>
                 <input
                   type="password"
@@ -132,7 +146,7 @@ export function TeamLogin({ teams }: { teams: Team[] }) {
 
             <button
               type="submit"
-              disabled={submitting || !teamId || pin.length !== 3}
+              disabled={submitting || !teamId || pin.length !== 3 || blockedByOtherClaim}
               className="w-full rounded-md bg-primary px-2.5 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
               {submitting ? "…" : needsPinCreation ? "Crear PIN y entrar" : "Entrar"}

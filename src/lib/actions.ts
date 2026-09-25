@@ -297,9 +297,23 @@ export interface TeamSession {
  * alguien le "robe" el login a otro equipo pisándole el PIN—; para
  * cambiarlo una vez creado hace falta pedirle al admin que lo resetee
  * directo en la base (no hay flujo de "olvidé mi PIN" todavía).
+ *
+ * `claimedTeamId` es el equipo que este navegador ya reclamó antes (ver
+ * claimedTeamId en useTeamAuth, src/lib/app-store.tsx; sobrevive al
+ * "Salir"): si ya reclamó uno y ahora intenta crear el PIN de OTRO
+ * distinto, se rechaza —un mismo participante no puede terminar
+ * "teniendo" dos equipos—. Ya lo bloquea la UI (`TeamLogin`); esto es el
+ * mismo chequeo repetido en el servidor por las dudas.
  */
-export async function setTeamPinAction(teamId: string, pin: string): Promise<TeamSession> {
+export async function setTeamPinAction(
+  teamId: string,
+  pin: string,
+  claimedTeamId?: string | null,
+): Promise<TeamSession> {
   if (!isValidPin(pin)) throw new Error("El PIN tiene que ser de exactamente 3 números.");
+  if (claimedTeamId && claimedTeamId !== teamId) {
+    throw new Error("Este dispositivo ya está asociado a otro equipo; no podés crear el PIN de uno nuevo.");
+  }
 
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) throw new Error("Ese equipo no existe.");
