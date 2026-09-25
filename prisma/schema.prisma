@@ -115,7 +115,7 @@ model CompetitionStage {
   endDate   DateTime?
 
   // Reglas de puntuación configurables por fase
-  pointsForWin  Int @default(3)
+  pointsForWin  Int @default(2)
   pointsForDraw Int @default(1)
   pointsForLoss Int @default(0)
 

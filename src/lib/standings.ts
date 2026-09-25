@@ -18,7 +18,7 @@ export interface StandingRow {
   form: MatchResult[];
 }
 
-const DEFAULT_POINTS: PointsConfig = { win: 3, draw: 1, loss: 0 };
+const DEFAULT_POINTS: PointsConfig = { win: 2, draw: 1, loss: 0 };
 
 function emptyRow(teamId: string): StandingRow {
   return {

@@ -149,7 +149,7 @@ export function createTournamentState(input: CreateTournamentInput): CreateTourn
   );
 
   const teamIds = teams.map((t) => t.id);
-  const points = { win: 3, draw: 1, loss: 0 };
+  const points = { win: 2, draw: 1, loss: 0 };
   const format = input.doubleRound ? "ROUND_ROBIN_DOUBLE" : "ROUND_ROBIN_SINGLE";
 
   // Arranca exactamente el día que se eligió: scheduleMatchdays ancla la
