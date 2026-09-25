@@ -102,6 +102,13 @@ model CompetitionStage {
   pointsForDraw Int @default(1)
   pointsForLoss Int @default(0)
 
+  /// Modo de alineación de esta fase ("fútbol de plato"): PASIVO (con
+  /// arquero) o ACTIVO (sin arquero, un defensa ocupa ese lugar). Null =
+  /// todavía no se marcó. Cada equipo tiene una alineación titular fija por
+  /// modo (ver TeamLineup); esta fase usa la que corresponda según este
+  /// campo.
+  lineupMode LineupMode?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -183,6 +190,7 @@ model Team {
   homeMatches       Match[]            @relation("HomeTeam")
   awayMatches       Match[]            @relation("AwayTeam")
   availability      TeamAvailability[]
+  lineups           TeamLineup[]
 
   @@unique([tournamentId, slug])
   @@index([tournamentId])
@@ -199,6 +207,31 @@ model Player {
   birthDate DateTime?
   createdAt DateTime  @default(now())
 
+  @@index([teamId])
+}
+
+enum LineupMode {
+  PASIVO // con arquero
+  ACTIVO // sin arquero: un defensa ocupa ese lugar
+}
+
+/// Alineación titular fija de un equipo para un modo de juego (PASIVO o
+/// ACTIVO). Se configura una sola vez desde el perfil del equipo y queda
+/// ahí hasta que la cambien (no se rearma partido a partido). Un equipo
+/// tiene a lo sumo una alineación por modo.
+model TeamLineup {
+  id     String     @id @default(auto()) @map("_id") @db.ObjectId
+  teamId String     @db.ObjectId
+  team   Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  mode   LineupMode
+
+  /// Ids de los jugadores titulares para este modo. PASIVO: 6 (exactamente
+  /// 1 Portero). ACTIVO: 4 (0 Porteros, al menos 1 Defensa).
+  playerIds String[] @db.ObjectId
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([teamId, mode])
   @@index([teamId])
 }
 

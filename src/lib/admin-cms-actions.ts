@@ -4,21 +4,19 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { hashPin, verifyPin } from "@/lib/pin";
 import { setAdminSessionCookie, clearAdminSessionCookie, requireAdminSession } from "@/lib/admin-session";
-import type { NewsCategory } from "@/types/domain";
+import type { ActionResult, NewsCategory } from "@/types/domain";
 
 const NEWS_CATEGORIES: NewsCategory[] = ["BLOWOUT", "COMFORTABLE", "NARROW", "DRAW", "FORFEIT"];
 
-/**
- * Estas acciones devuelven { success, message } en vez de tirar un `throw`:
- * en producción, un error lanzado desde una Server Action que cruza al
- * cliente pierde su mensaje real (Next.js lo reemplaza por uno genérico
- * redactado, "Minified React error #441..."). Un valor de retorno es datos
- * comunes y corrientes — nunca se redacta — así que es la única forma de
- * que el usuario vea el motivo real de un error esperado (usuario
- * duplicado, contraseña corta, etc.). Errores realmente inesperados
- * también se capturan acá y se devuelven de la misma forma.
- */
-export type ActionResult = { success: true } | { success: false; message: string };
+// Estas acciones devuelven { success, message } en vez de tirar un `throw`:
+// en producción, un error lanzado desde una Server Action que cruza al
+// cliente pierde su mensaje real (Next.js lo reemplaza por uno genérico
+// redactado, "Minified React error #441..."). Un valor de retorno es datos
+// comunes y corrientes — nunca se redacta — así que es la única forma de
+// que el usuario vea el motivo real de un error esperado (usuario
+// duplicado, contraseña corta, etc.). Errores realmente inesperados también
+// se capturan acá y se devuelven de la misma forma. Ver ActionResult en
+// src/types/domain.ts.
 
 function fail(message: string): ActionResult {
   return { success: false, message };

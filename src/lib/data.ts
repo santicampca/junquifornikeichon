@@ -2,6 +2,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type {
   CompetitionStage,
+  LineupMode,
   Match,
   NewsCategory,
   NewsPhoto,
@@ -10,6 +11,7 @@ import type {
   StageParticipant,
   Team,
   TeamAvailability,
+  TeamLineup,
   TournamentState,
 } from "@/types/domain";
 
@@ -106,6 +108,7 @@ export const getActiveTournamentState = cache(async (): Promise<TournamentState 
     status: s.status,
     points: { win: s.pointsForWin, draw: s.pointsForDraw, loss: s.pointsForLoss },
     aggregatesFrom: s.aggregatesFrom.length > 0 ? s.aggregatesFrom.map((a) => a.childStageId) : undefined,
+    lineupMode: s.lineupMode ?? undefined,
   }));
 
   const matchesByStage: Record<string, Match[]> = {};
@@ -232,6 +235,16 @@ export const getTeamPlayers = cache(async (teamId: string): Promise<Player[]> =>
     number: p.number ?? undefined,
     position: p.position ?? undefined,
   }));
+});
+
+/**
+ * Alineaciones titulares fijas de un equipo (una por modo, PASIVO/ACTIVO;
+ * ver TeamLineup en prisma/schema.prisma). Separado de `getActiveTournamentState`
+ * por la misma razón que `getTeamPlayers`: solo hace falta en el perfil del equipo.
+ */
+export const getTeamLineups = cache(async (teamId: string): Promise<TeamLineup[]> => {
+  const lineups = await prisma.teamLineup.findMany({ where: { teamId } });
+  return lineups.map((l) => ({ teamId: l.teamId, mode: l.mode as LineupMode, playerIds: l.playerIds }));
 });
 
 // ============================================================

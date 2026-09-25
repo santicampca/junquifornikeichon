@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { TeamBadge } from "@/components/teams/team-badge";
 import { TeamRoster } from "@/components/teams/team-roster";
+import { TeamLineupEditor } from "@/components/teams/team-lineup-editor";
 import { MatchCard } from "@/components/matches/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeStandings } from "@/lib/standings";
-import { getActiveTournamentState, getTeamPlayers } from "@/lib/data";
+import { getActiveTournamentState, getTeamPlayers, getTeamLineups } from "@/lib/data";
 
 export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]">) {
   const { slug } = await props.params;
@@ -13,7 +14,7 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
   const team = state?.teams.find((t) => t.slug === slug);
   if (!state || !team) notFound();
 
-  const players = await getTeamPlayers(team.id);
+  const [players, lineups] = await Promise.all([getTeamPlayers(team.id), getTeamLineups(team.id)]);
 
   const { teams, stages, matchesByStage, stageParticipants } = state;
   const teamsById = new Map(teams.map((t) => [t.id, t]));
@@ -131,6 +132,10 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <TeamLineupEditor teamId={team.id} players={players} lineups={lineups} />
       </div>
     </div>
   );

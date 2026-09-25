@@ -7,7 +7,15 @@ import { getActiveTournamentState } from "@/lib/data";
 import { persistTournamentState } from "@/lib/persist-tournament";
 import { createTournamentState, type CreateTournamentInput, type CreateTournamentConflict } from "@/lib/tournament-factory";
 import { computeStandings, mergeStandings } from "@/lib/standings";
-import { MAX_ROSTER_SIZE, MAX_PLAYERS_PER_POSITION, PLAYER_POSITIONS, type TournamentState } from "@/types/domain";
+import {
+  MAX_ROSTER_SIZE,
+  MAX_PLAYERS_PER_POSITION,
+  PLAYER_POSITIONS,
+  LINEUP_SIZE,
+  type ActionResult,
+  type LineupMode,
+  type TournamentState,
+} from "@/types/domain";
 
 // Misma lista que src/lib/app-store.tsx: una traba de conveniencia, no
 // autenticación real. Se valida acá también (no solo en el cliente) porque
@@ -676,4 +684,73 @@ export async function generatePlayoffsFinalAction(adminName: string, stageId: st
   });
 
   revalidatePath("/", "layout");
+}
+
+// ============================================================
+// ALINEACIONES ("fútbol de plato": modo PASIVO con arquero / ACTIVO sin
+// arquero). Cada fase se marca con un modo; cada equipo tiene una
+// alineación titular fija por modo, editable en cualquier momento desde su
+// perfil (no se rearma partido a partido).
+// ============================================================
+
+export async function setStageLineupModeAction(
+  adminName: string,
+  stageId: string,
+  mode: LineupMode | null,
+): Promise<void> {
+  assertAdmin(adminName);
+  await prisma.competitionStage.update({ where: { id: stageId }, data: { lineupMode: mode } });
+  revalidatePath("/", "layout");
+}
+
+function assertLineupComposition(mode: LineupMode, players: { position: string | null }[]): string | null {
+  const expectedSize = LINEUP_SIZE[mode];
+  if (players.length !== expectedSize) {
+    return `El modo ${mode === "PASIVO" ? "pasivo" : "activo"} necesita exactamente ${expectedSize} jugadores.`;
+  }
+
+  const goalkeepers = players.filter((p) => p.position === "Portero").length;
+  if (mode === "PASIVO") {
+    if (goalkeepers !== 1) return "El modo pasivo necesita exactamente 1 arquero en la alineación.";
+  } else {
+    if (goalkeepers !== 0) return "El modo activo no lleva arquero.";
+    const defenders = players.filter((p) => p.position === "Defensa").length;
+    if (defenders < 1) return "El modo activo necesita al menos 1 defensa (ocupa el lugar del arquero).";
+  }
+  return null;
+}
+
+/**
+ * Guarda la alineación titular fija de un equipo para un modo. Reemplaza
+ * por completo la lista anterior de ese modo (no es incremental).
+ */
+export async function setTeamLineupAction(
+  teamId: string,
+  mode: LineupMode,
+  playerIds: string[],
+): Promise<ActionResult> {
+  try {
+    const uniqueIds = [...new Set(playerIds)];
+    if (uniqueIds.length !== playerIds.length) {
+      return { success: false, message: "Un jugador no puede estar dos veces en la misma alineación." };
+    }
+
+    const players = await prisma.player.findMany({ where: { id: { in: uniqueIds }, teamId } });
+    if (players.length !== uniqueIds.length) {
+      return { success: false, message: "Alguno de los jugadores seleccionados no pertenece a este equipo." };
+    }
+
+    const compositionError = assertLineupComposition(mode, players);
+    if (compositionError) return { success: false, message: compositionError };
+
+    await prisma.teamLineup.upsert({
+      where: { teamId_mode: { teamId, mode } },
+      create: { teamId, mode, playerIds: uniqueIds },
+      update: { playerIds: uniqueIds },
+    });
+    revalidatePath("/", "layout");
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err instanceof Error ? err.message : "No se pudo guardar la alineación." };
+  }
 }

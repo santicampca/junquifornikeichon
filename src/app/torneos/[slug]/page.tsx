@@ -9,6 +9,7 @@ import { ResetTournamentButton } from "@/components/admin/reset-tournament-butto
 import { DeleteTournamentButton } from "@/components/admin/delete-tournament-button";
 import { EditTournamentName } from "@/components/admin/edit-tournament-name";
 import { GeneratePlayoffsButton } from "@/components/admin/generate-playoffs-button";
+import { StageLineupModeSelector } from "@/components/admin/stage-lineup-mode-selector";
 import { computeStandings, mergeStandings } from "@/lib/standings";
 import { getActiveTournamentState } from "@/lib/data";
 import type { Match } from "@/types/domain";
@@ -71,6 +72,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
             />
             <p className="text-sm text-muted">{activeStage.name}</p>
           </div>
+          <StageLineupModeSelector stageId={activeStage.id} mode={activeStage.lineupMode} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link

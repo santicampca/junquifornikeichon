@@ -79,6 +79,8 @@ export interface CompetitionStage {
   points: PointsConfig;
   /** Solo para fases GENERAL: ids de las fases cuyos puntos se suman. */
   aggregatesFrom?: string[];
+  /** Modo de alineación de la fase ("fútbol de plato"): ver LineupMode. */
+  lineupMode?: LineupMode;
 }
 
 export interface Team {
@@ -118,6 +120,26 @@ export interface Player {
   number?: number;
   position?: string;
 }
+
+/**
+ * Modo de alineación ("fútbol de plato"): PASIVO juega con arquero, ACTIVO
+ * no tiene arquero (un defensa ocupa ese lugar). Cada fase del torneo se
+ * marca con uno de los dos (ver CompetitionStage.lineupMode) y cada equipo
+ * mantiene una alineación titular fija por modo (ver TeamLineup).
+ */
+export type LineupMode = "PASIVO" | "ACTIVO";
+
+/** Cantidad de titulares por modo: PASIVO = arquero + 5, ACTIVO = 4 (sin arquero). */
+export const LINEUP_SIZE: Record<LineupMode, number> = { PASIVO: 6, ACTIVO: 4 };
+
+export interface TeamLineup {
+  teamId: string;
+  mode: LineupMode;
+  playerIds: string[];
+}
+
+/** Resultado de una Server Action: nunca se redacta en producción (a diferencia de un `throw`). */
+export type ActionResult = { success: true } | { success: false; message: string };
 
 export interface TeamAvailability {
   teamId: string;
