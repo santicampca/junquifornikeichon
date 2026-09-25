@@ -222,6 +222,10 @@ model Player {
   number    Int?
   position  String? // ej: "Portero", "Defensa", "Mediocampista", "Delantero"
   birthDate DateTime?
+  /// Total de goles en la temporada (contador manual, cargado desde la
+  /// plantilla del equipo — no está atado a partidos concretos). Alimenta
+  /// la pestaña "Goleadores" del torneo.
+  goals     Int       @default(0)
   createdAt DateTime  @default(now())
 
   @@index([teamId])
@@ -273,6 +277,18 @@ model Champion {
   createdAt DateTime @default(now())
 
   @@index([teamSlug])
+}
+
+// ============================================================
+// PLAYLIST: canciones subidas por el admin (data URL base64, mismo enfoque
+// que NewsPhoto.imageData/Match.proofImageData) para la pestaña "Playlist".
+// ============================================================
+
+model PlaylistTrack {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  audioData String
+  createdAt DateTime @default(now())
 }
 
 // ============================================================

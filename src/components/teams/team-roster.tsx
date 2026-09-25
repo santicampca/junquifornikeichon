@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X, Goal } from "lucide-react";
 import { useAdmin, useTeamAuth } from "@/lib/app-store";
 import { createPlayerAction, deletePlayerAction, updatePlayerAction } from "@/lib/actions";
 import { MAX_PLAYERS_PER_POSITION, MAX_ROSTER_SIZE, PLAYER_POSITIONS, type Player } from "@/types/domain";
@@ -15,14 +15,20 @@ interface PlayerFormState {
   name: string;
   number: string;
   position: string;
+  goals: string;
 }
 
 function emptyForm(): PlayerFormState {
-  return { name: "", number: "", position: "" };
+  return { name: "", number: "", position: "", goals: "" };
 }
 
 function toFormState(player: Player): PlayerFormState {
-  return { name: player.name, number: player.number?.toString() ?? "", position: player.position ?? "" };
+  return {
+    name: player.name,
+    number: player.number?.toString() ?? "",
+    position: player.position ?? "",
+    goals: player.goals ? player.goals.toString() : "",
+  };
 }
 
 export function TeamRoster({ teamId, players }: { teamId: string; players: Player[] }) {
@@ -54,6 +60,7 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
       name: form.name.trim(),
       number: form.number.trim() ? Number(form.number) : undefined,
       position: form.position.trim() || undefined,
+      goals: form.goals.trim() ? Number(form.goals) : 0,
     };
   }
 
@@ -148,6 +155,13 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                     );
                   })}
                 </select>
+                <input
+                  value={editForm.goals}
+                  onChange={(e) => setEditForm((f) => ({ ...f, goals: e.target.value }))}
+                  placeholder="Goles"
+                  inputMode="numeric"
+                  className={cn(inputClass, "w-16 text-center")}
+                />
                 <button
                   type="submit"
                   disabled={submitting}
@@ -177,6 +191,12 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                 <span className="truncate text-sm text-foreground">{player.name}</span>
                 {player.position && (
                   <span className="shrink-0 text-xs text-muted">{player.position}</span>
+                )}
+                {player.goals > 0 && (
+                  <span className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary">
+                    <Goal className="size-3.5" />
+                    {player.goals}
+                  </span>
                 )}
               </div>
               {canEdit && (
@@ -241,6 +261,13 @@ export function TeamRoster({ teamId, players }: { teamId: string; players: Playe
                 </option>
               ))}
             </select>
+            <input
+              value={addForm.goals}
+              onChange={(e) => setAddForm((f) => ({ ...f, goals: e.target.value }))}
+              placeholder="Goles"
+              inputMode="numeric"
+              className={cn(inputClass, "w-16 text-center")}
+            />
             <button
               type="submit"
               disabled={submitting || !addForm.name.trim() || rosterFull}

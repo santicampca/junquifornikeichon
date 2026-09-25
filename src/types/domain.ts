@@ -138,6 +138,24 @@ export interface Player {
   name: string;
   number?: number;
   position?: string;
+  /** Total de goles en la temporada (contador manual). Ver pestaña "Goleadores". */
+  goals: number;
+}
+
+/** Fila de la pestaña "Goleadores": un jugador con su equipo, para no tener que unir por separado. */
+export interface TopScorer {
+  playerId: string;
+  playerName: string;
+  goals: number;
+  teamSlug: string;
+  teamName: string;
+}
+
+/** Canción subida por el admin para la pestaña "Playlist" (ver PlaylistTrack en prisma/schema.prisma). */
+export interface PlaylistTrack {
+  id: string;
+  title: string;
+  audioData: string;
 }
 
 /**

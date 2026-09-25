@@ -14,12 +14,21 @@ import { GeneratePlayoffsButton } from "@/components/admin/generate-playoffs-but
 import { GenerateClausuraButton } from "@/components/admin/generate-clausura-button";
 import { StageLineupModeSelector } from "@/components/admin/stage-lineup-mode-selector";
 import { PalmaresPanel } from "@/components/tournaments/palmares-panel";
+import { TopScorersPanel } from "@/components/tournaments/top-scorers-panel";
+import { PlaylistPanel } from "@/components/tournaments/playlist-panel";
 import { computeStandings, mergeStandings } from "@/lib/standings";
-import { getActiveTournamentState, getChampions } from "@/lib/data";
+import { getActiveTournamentState, getChampions, getTopScorers, getPlaylist } from "@/lib/data";
 import type { Match } from "@/types/domain";
 
-const SPECIAL_TABS = ["reglas", "palmares"] as const;
+const SPECIAL_TABS = ["reglas", "palmares", "goleadores", "playlist"] as const;
 type SpecialTab = (typeof SPECIAL_TABS)[number];
+
+const SPECIAL_TAB_LABEL: Record<SpecialTab, string> = {
+  reglas: "Reglas",
+  palmares: "Palmarés",
+  goleadores: "Goleadores",
+  playlist: "Playlist",
+};
 
 export default async function TournamentPage(props: PageProps<"/torneos/[slug]">) {
   const { slug } = await props.params;
@@ -31,7 +40,11 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
   const { tournament, teams, stages, matchesByStage, stageParticipants } = state;
   const teamIds = teams.map((t) => t.id);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
-  const champions = await getChampions();
+  const [champions, topScorers, playlist] = await Promise.all([
+    getChampions(),
+    getTopScorers(teamIds),
+    getPlaylist(),
+  ]);
 
   function adjustmentsForStage(stageId: string): Record<string, number> {
     return Object.fromEntries(
@@ -83,9 +96,7 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
               name={tournament.name}
               className="text-xl font-bold tracking-tight text-foreground"
             />
-            <p className="text-sm text-muted">
-              {specialTab === "reglas" ? "Reglas del torneo" : specialTab === "palmares" ? "Palmarés" : activeStage.name}
-            </p>
+            <p className="text-sm text-muted">{specialTab ? SPECIAL_TAB_LABEL[specialTab] : activeStage.name}</p>
           </div>
           {!specialTab && <StageLineupModeSelector stageId={activeStage.id} mode={activeStage.lineupMode} />}
         </div>
@@ -110,6 +121,8 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
           extraTabs={[
             { id: "reglas", label: "Reglas" },
             { id: "palmares", label: "Palmarés" },
+            { id: "goleadores", label: "Goleadores" },
+            { id: "playlist", label: "Playlist" },
           ]}
         />
       </div>
@@ -122,6 +135,10 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
         </Card>
       ) : specialTab === "palmares" ? (
         <PalmaresPanel champions={champions} teams={teams} />
+      ) : specialTab === "goleadores" ? (
+        <TopScorersPanel scorers={topScorers} />
+      ) : specialTab === "playlist" ? (
+        <PlaylistPanel tracks={playlist} />
       ) : !hasParticipants ? (
         <div className="space-y-4">
           <EmptyState

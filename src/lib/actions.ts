@@ -347,6 +347,7 @@ export interface PlayerInput {
   name: string;
   number?: number;
   position?: string;
+  goals?: number;
 }
 
 function assertValidPlayerInput(input: PlayerInput) {
@@ -356,6 +357,9 @@ function assertValidPlayerInput(input: PlayerInput) {
   }
   if (input.position && !(PLAYER_POSITIONS as readonly string[]).includes(input.position)) {
     throw new Error("Posición inválida.");
+  }
+  if (input.goals !== undefined && (!Number.isInteger(input.goals) || input.goals < 0)) {
+    throw new Error("Los goles deben ser un número entero no negativo.");
   }
 }
 
@@ -397,6 +401,7 @@ export async function createPlayerAction(teamId: string, input: PlayerInput): Pr
       name: input.name.trim(),
       number: input.number,
       position: input.position?.trim() || undefined,
+      goals: input.goals ?? 0,
     },
   });
 
@@ -416,6 +421,7 @@ export async function updatePlayerAction(playerId: string, input: PlayerInput): 
       name: input.name.trim(),
       number: input.number,
       position: input.position?.trim() || undefined,
+      goals: input.goals ?? 0,
     },
   });
 
@@ -910,5 +916,41 @@ export async function deleteChampionAction(adminName: string, id: string): Promi
     return ok;
   } catch (err) {
     return fail(err instanceof Error ? err.message : "No se pudo eliminar el título.");
+  }
+}
+
+// ============================================================
+// PLAYLIST: canciones subidas por el admin (data URL base64, mismo enfoque
+// que las fotos de noticias/comprobantes de partido).
+// ============================================================
+
+export async function addPlaylistTrackAction(
+  adminName: string,
+  title: string,
+  audioDataUrl: string,
+): Promise<ActionResult> {
+  try {
+    assertAdmin(adminName);
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) return fail("Ponele un título a la canción.");
+    if (trimmedTitle.length > 120) return fail("El título es demasiado largo (máximo 120 caracteres).");
+    if (!audioDataUrl.startsWith("data:audio/")) return fail("El archivo no es un audio válido.");
+
+    await prisma.playlistTrack.create({ data: { title: trimmedTitle, audioData: audioDataUrl } });
+    revalidatePath("/", "layout");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo subir la canción.");
+  }
+}
+
+export async function deletePlaylistTrackAction(adminName: string, id: string): Promise<ActionResult> {
+  try {
+    assertAdmin(adminName);
+    await prisma.playlistTrack.delete({ where: { id } });
+    revalidatePath("/", "layout");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo eliminar la canción.");
   }
 }

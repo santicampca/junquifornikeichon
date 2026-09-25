@@ -9,10 +9,12 @@ import type {
   NewsPhoto,
   NewsPhrase,
   Player,
+  PlaylistTrack,
   StageParticipant,
   Team,
   TeamAvailability,
   TeamLineup,
+  TopScorer,
   TournamentState,
 } from "@/types/domain";
 
@@ -236,7 +238,32 @@ export const getTeamPlayers = cache(async (teamId: string): Promise<Player[]> =>
     name: p.name,
     number: p.number ?? undefined,
     position: p.position ?? undefined,
+    goals: p.goals ?? 0,
   }));
+});
+
+/**
+ * Tabla de goleadores de todo el torneo (todos los equipos), para la
+ * pestaña "Goleadores". Solo trae jugadores con al menos un gol.
+ */
+export const getTopScorers = cache(async (teamIds: string[]): Promise<TopScorer[]> => {
+  if (teamIds.length === 0) return [];
+  const [players, teams] = await Promise.all([
+    prisma.player.findMany({ where: { teamId: { in: teamIds }, goals: { gt: 0 } }, orderBy: { goals: "desc" } }),
+    prisma.team.findMany({ where: { id: { in: teamIds } }, select: { id: true, slug: true, name: true } }),
+  ]);
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+
+  return players.map((p) => {
+    const team = teamById.get(p.teamId);
+    return {
+      playerId: p.id,
+      playerName: p.name,
+      goals: p.goals,
+      teamSlug: team?.slug ?? "",
+      teamName: team?.name ?? "",
+    };
+  });
 });
 
 /**
@@ -332,4 +359,13 @@ export const getChampionsForTeam = cache(async (teamSlug: string): Promise<Champ
     orderBy: [{ year: "desc" }, { createdAt: "desc" }],
   });
   return rows.map(mapChampion);
+});
+
+// ============================================================
+// PLAYLIST: canciones subidas por el admin (ver PlaylistTrack en prisma/schema.prisma)
+// ============================================================
+
+export const getPlaylist = cache(async (): Promise<PlaylistTrack[]> => {
+  const rows = await prisma.playlistTrack.findMany({ orderBy: { createdAt: "asc" } });
+  return rows.map((r) => ({ id: r.id, title: r.title, audioData: r.audioData }));
 });
