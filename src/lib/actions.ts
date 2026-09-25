@@ -13,6 +13,7 @@ import {
   MAX_PLAYERS_PER_POSITION,
   PLAYER_POSITIONS,
   LINEUP_SIZE,
+  ACTIVE_FORMATIONS,
   type ActionResult,
   type LineupMode,
   type TournamentState,
@@ -931,12 +932,16 @@ function assertLineupComposition(mode: LineupMode, players: { position: string |
 
 /**
  * Guarda la alineación titular fija de un equipo para un modo. Reemplaza
- * por completo la lista anterior de ese modo (no es incremental).
+ * por completo la lista anterior de ese modo (no es incremental). `formation`
+ * es obligatoria para ACTIVO (define en qué puesto de la cancha cae cada
+ * `playerIds[i]`, ver FORMATION_SLOTS en src/types/domain.ts) e ignorada
+ * para PASIVO (todavía sin selector de formación).
  */
 export async function setTeamLineupAction(
   teamId: string,
   mode: LineupMode,
   playerIds: string[],
+  formation?: string,
 ): Promise<ActionResult> {
   try {
     const uniqueIds = [...new Set(playerIds)];
@@ -952,10 +957,15 @@ export async function setTeamLineupAction(
     const compositionError = assertLineupComposition(mode, players);
     if (compositionError) return { success: false, message: compositionError };
 
+    if (mode === "ACTIVO" && !(ACTIVE_FORMATIONS as readonly string[]).includes(formation ?? "")) {
+      return { success: false, message: "Elegí una formación para el modo activo." };
+    }
+    const storedFormation = mode === "ACTIVO" ? formation : null;
+
     await prisma.teamLineup.upsert({
       where: { teamId_mode: { teamId, mode } },
-      create: { teamId, mode, playerIds: uniqueIds },
-      update: { playerIds: uniqueIds },
+      create: { teamId, mode, playerIds: uniqueIds, formation: storedFormation },
+      update: { playerIds: uniqueIds, formation: storedFormation },
     });
     revalidatePath("/", "layout");
     return { success: true };

@@ -188,7 +188,7 @@ export default async function TeamProfilePage(props: PageProps<"/equipos/[slug]"
       </div>
 
       <div className="mt-8">
-        <TeamLineupEditor teamId={team.id} players={players} lineups={lineups} />
+        <TeamLineupEditor teamId={team.id} teamLogoUrl={team.logoUrl} players={players} lineups={lineups} />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type {
+  ActiveFormation,
   Champion,
   CompetitionStage,
   LineupMode,
@@ -273,7 +274,12 @@ export const getTopScorers = cache(async (teamIds: string[]): Promise<TopScorer[
  */
 export const getTeamLineups = cache(async (teamId: string): Promise<TeamLineup[]> => {
   const lineups = await prisma.teamLineup.findMany({ where: { teamId } });
-  return lineups.map((l) => ({ teamId: l.teamId, mode: l.mode as LineupMode, playerIds: l.playerIds }));
+  return lineups.map((l) => ({
+    teamId: l.teamId,
+    mode: l.mode as LineupMode,
+    playerIds: l.playerIds,
+    formation: (l.formation as ActiveFormation) ?? undefined,
+  }));
 });
 
 // ============================================================

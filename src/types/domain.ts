@@ -174,10 +174,56 @@ export type LineupMode = "PASIVO" | "ACTIVO";
 /** Cantidad de titulares por modo: PASIVO = arquero + 5, ACTIVO = 4 (sin arquero). */
 export const LINEUP_SIZE: Record<LineupMode, number> = { PASIVO: 6, ACTIVO: 4 };
 
+/**
+ * Formas tácticas disponibles para el modo ACTIVO (4 titulares, sin
+ * arquero): cada una define en qué punto de la cancha va cada uno de los 4
+ * puestos, en el mismo orden que `TeamLineup.playerIds`. `y` va de 0 (arco
+ * rival) a 100 (arco propio); `x` de 0 (izquierda) a 100 (derecha).
+ */
+export const ACTIVE_FORMATIONS = ["1-3", "1-2-1", "1-1-2", "3-1"] as const;
+export type ActiveFormation = (typeof ACTIVE_FORMATIONS)[number];
+
+export const FORMATION_SLOTS: Record<ActiveFormation, { x: number; y: number }[]> = {
+  "1-3": [
+    { x: 50, y: 82 },
+    { x: 22, y: 38 },
+    { x: 50, y: 28 },
+    { x: 78, y: 38 },
+  ],
+  "1-2-1": [
+    { x: 50, y: 82 },
+    { x: 30, y: 52 },
+    { x: 70, y: 52 },
+    { x: 50, y: 24 },
+  ],
+  "1-1-2": [
+    { x: 50, y: 82 },
+    { x: 50, y: 55 },
+    { x: 30, y: 26 },
+    { x: 70, y: 26 },
+  ],
+  "3-1": [
+    { x: 22, y: 62 },
+    { x: 50, y: 58 },
+    { x: 78, y: 62 },
+    { x: 50, y: 22 },
+  ],
+};
+
+/** Nombre corto de cada puesto (mismo orden que FORMATION_SLOTS), para los selectores del editor de alineación. */
+export const FORMATION_SLOT_LABELS: Record<ActiveFormation, string[]> = {
+  "1-3": ["Atrás", "Adelante izquierda", "Adelante centro", "Adelante derecha"],
+  "1-2-1": ["Atrás", "Medio izquierda", "Medio derecha", "Adelante"],
+  "1-1-2": ["Atrás", "Medio", "Adelante izquierda", "Adelante derecha"],
+  "3-1": ["Atrás izquierda", "Atrás centro", "Atrás derecha", "Adelante"],
+};
+
 export interface TeamLineup {
   teamId: string;
   mode: LineupMode;
   playerIds: string[];
+  /** Solo para ACTIVO; ver ACTIVE_FORMATIONS. */
+  formation?: ActiveFormation;
 }
 
 /** Resultado de una Server Action: nunca se redacta en producción (a diferencia de un `throw`). */
