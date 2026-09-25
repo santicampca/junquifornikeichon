@@ -14,11 +14,13 @@ export function Navbar({
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Trophy className="size-4" strokeWidth={2.5} />
           </span>
-          Junkifornic<span className="text-primary">ados</span>
+          <span className="whitespace-nowrap">
+            Junkifornic<span className="text-primary">ados</span>
+          </span>
         </Link>
 
         <nav className="flex items-center gap-1 text-sm">

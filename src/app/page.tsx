@@ -2,7 +2,8 @@ import { TournamentCard } from "@/components/tournaments/tournament-card";
 import { NewTournamentButton } from "@/components/admin/new-tournament-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getActiveTournamentState, getLastTeamRoster } from "@/lib/data";
-import { Trophy } from "lucide-react";
+import { buildMatchHeadline } from "@/lib/headlines";
+import { Flame, Trophy } from "lucide-react";
 
 export default async function DashboardPage() {
   const state = await getActiveTournamentState();
@@ -10,12 +11,17 @@ export default async function DashboardPage() {
   // teniendo los últimos equipos conocidos para precargar en el asistente.
   const lastRoster = await getLastTeamRoster();
 
-  const playedMatches = state
-    ? Object.values(state.matchesByStage)
-        .flat()
-        .filter((m) => m.status === "PLAYED").length
-    : 0;
+  const allMatches = state ? Object.values(state.matchesByStage).flat() : [];
+  const playedMatches = allMatches.filter((m) => m.status === "PLAYED").length;
   const activeStages = state ? state.stages.filter((s) => s.status !== "DRAFT").length : 0;
+
+  const teamsById = new Map((state?.teams ?? []).map((t) => [t.id, t]));
+  const headlines = allMatches
+    .filter((m) => m.status === "PLAYED" || m.status === "WALKOVER")
+    .sort((a, b) => (b.scheduledAt ?? "").localeCompare(a.scheduledAt ?? ""))
+    .map((m) => buildMatchHeadline(m, teamsById.get(m.homeTeamId), teamsById.get(m.awayTeamId)))
+    .filter((h): h is NonNullable<typeof h> => h !== null)
+    .slice(0, 6);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -47,6 +53,25 @@ export default async function DashboardPage() {
             <StatTile label="Fases activas" value={activeStages} />
             <StatTile label="Partidos jugados" value={playedMatches} />
           </div>
+
+          {headlines.length > 0 && (
+            <div className="mt-10">
+              <div className="mb-3 flex items-center gap-2">
+                <Flame className="size-5 text-primary" />
+                <h2 className="text-lg font-bold tracking-tight text-foreground">Noticias</h2>
+              </div>
+              <ul className="space-y-2">
+                {headlines.map((h) => (
+                  <li
+                    key={h.matchId}
+                    className="rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground"
+                  >
+                    {h.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       )}
     </div>
