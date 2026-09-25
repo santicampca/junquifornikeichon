@@ -172,7 +172,8 @@ export default async function TournamentPage(props: PageProps<"/torneos/[slug]">
             <StandingsTable
               rows={rows}
               teamsById={teamsById}
-              highlightTopN={2}
+              highlightTopN={1}
+              secondaryHighlightRange={isGeneral ? [2, 8] : undefined}
               stageId={isGeneral || activeStage.type === "PLAYOFFS" ? undefined : activeStage.id}
             />
             {activeStage.type === "PLAYOFFS" && (

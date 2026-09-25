@@ -15,12 +15,15 @@ export function StandingsTable({
   rows,
   teamsById,
   highlightTopN,
+  secondaryHighlightRange,
   stageId,
 }: {
   rows: StandingRow[];
   teamsById: Map<string, Team>;
-  /** Cuántas primeras posiciones resaltar (ej: zona de clasificación). */
+  /** Cuántas primeras posiciones resaltar en verde (ej: 1° puesto). */
   highlightTopN?: number;
+  /** Rango [desde, hasta] de posiciones a resaltar en azul (ej: 2° a 8° en la Tabla General, zona de playoffs). */
+  secondaryHighlightRange?: [number, number];
   /** Si se pasa, admin puede sumar/restar puntos a mano por equipo en esa fase. No aplica a la Tabla General. */
   stageId?: string;
 }) {
@@ -48,21 +51,29 @@ export function StandingsTable({
             const team = teamsById.get(row.teamId);
             if (!team) return null;
             const position = index + 1;
-            const highlighted = highlightTopN ? position <= highlightTopN : false;
+            const isTop = highlightTopN ? position <= highlightTopN : false;
+            const isQualifying = secondaryHighlightRange
+              ? position >= secondaryHighlightRange[0] && position <= secondaryHighlightRange[1]
+              : false;
 
             return (
               <tr
                 key={row.teamId}
                 className={cn(
                   "border-b border-border/60 last:border-b-0 hover:bg-surface-elevated/60",
-                  highlighted && "bg-primary/5",
+                  isTop && "bg-win/10",
+                  isQualifying && "bg-blue-500/10",
                 )}
               >
                 <td className="px-3 py-2 text-center">
                   <span
                     className={cn(
                       "inline-flex size-5 items-center justify-center rounded text-xs font-semibold",
-                      highlighted ? "bg-primary text-primary-foreground" : "text-muted",
+                      isTop
+                        ? "bg-win text-white"
+                        : isQualifying
+                          ? "bg-blue-500 text-white"
+                          : "text-muted",
                     )}
                   >
                     {position}
