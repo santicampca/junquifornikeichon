@@ -1,17 +1,33 @@
 import { ShieldCheck } from "lucide-react";
 import { getAdminSession } from "@/lib/admin-session";
 import { hasAdminUser, getNewsPhrasesForAdmin, getNewsPhotosForAdmin } from "@/lib/data";
-import { BootstrapForm, AdminLoginPanelForm } from "@/components/admin-cms/auth-forms";
+import { BootstrapForm } from "@/components/admin-cms/bootstrap-form";
+import { AdminLoginPanelForm } from "@/components/admin-cms/login-form";
 import { AccountPanel } from "@/components/admin-cms/account-panel";
 import { PhraseManager } from "@/components/admin-cms/phrase-manager";
 import { PhotoManager } from "@/components/admin-cms/photo-manager";
+import type { NewsPhoto, NewsPhrase } from "@/types/domain";
 
 export default async function AdminPage() {
-  const bootstrapped = await hasAdminUser();
-  const session = bootstrapped ? await getAdminSession() : null;
-  const [phrases, photos] = session
-    ? await Promise.all([getNewsPhrasesForAdmin(), getNewsPhotosForAdmin()])
-    : [[], []];
+  let loadError: string | null = null;
+  let bootstrapped = false;
+  let session: { username: string } | null = null;
+  let phrases: NewsPhrase[] = [];
+  let photos: NewsPhoto[] = [];
+
+  try {
+    bootstrapped = await hasAdminUser();
+    session = bootstrapped ? await getAdminSession() : null;
+    if (session) {
+      [phrases, photos] = await Promise.all([getNewsPhrasesForAdmin(), getNewsPhotosForAdmin()]);
+    }
+  } catch (err) {
+    // Capturado a propósito: sin esto, Next.js reemplaza cualquier error acá
+    // por un mensaje genérico redactado en producción ("Minified React error
+    // #441"), sin dar ninguna pista de qué falló. Mostrarlo directo en la
+    // página es temporal, solo para diagnosticar.
+    loadError = err instanceof Error ? `${err.name}: ${err.message}\n\n${err.stack ?? ""}` : String(err);
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -25,14 +41,22 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      {!bootstrapped && <BootstrapForm />}
-      {bootstrapped && !session && <AdminLoginPanelForm />}
-      {bootstrapped && session && (
-        <div className="space-y-4">
-          <AccountPanel username={session.username} />
-          <PhraseManager phrases={phrases} />
-          <PhotoManager photos={photos} />
-        </div>
+      {loadError ? (
+        <pre className="whitespace-pre-wrap rounded-xl border border-loss/40 bg-loss/10 p-4 text-xs text-loss">
+          {loadError}
+        </pre>
+      ) : (
+        <>
+          {!bootstrapped && <BootstrapForm />}
+          {bootstrapped && !session && <AdminLoginPanelForm />}
+          {bootstrapped && session && (
+            <div className="space-y-4">
+              <AccountPanel username={session.username} />
+              <PhraseManager phrases={phrases} />
+              <PhotoManager photos={photos} />
+            </div>
+          )}
+        </>
       )}
     </div>
   );
