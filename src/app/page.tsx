@@ -1,9 +1,9 @@
 import { TournamentCard } from "@/components/tournaments/tournament-card";
 import { NewTournamentButton } from "@/components/admin/new-tournament-button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getActiveTournamentState, getLastTeamRoster } from "@/lib/data";
+import { getActiveTournamentState, getLastTeamRoster, getMatchProofImage } from "@/lib/data";
 import { buildMatchHeadline } from "@/lib/headlines";
-import { Flame, Trophy } from "lucide-react";
+import { Camera, Flame, Trophy } from "lucide-react";
 
 export default async function DashboardPage() {
   const state = await getActiveTournamentState();
@@ -22,6 +22,13 @@ export default async function DashboardPage() {
     .map((m) => buildMatchHeadline(m, teamsById.get(m.homeTeamId), teamsById.get(m.awayTeamId)))
     .filter((h): h is NonNullable<typeof h> => h !== null)
     .slice(0, 6);
+
+  // La foto de cada noticia es el comprobante real que subió el equipo al
+  // cerrar el partido (ver uploadMatchProofAction); si no hay (ej: cerrado
+  // por walkover), la tarjeta queda con el espacio vacío para la foto.
+  const photosByMatchId = new Map(
+    await Promise.all(headlines.map(async (h) => [h.matchId, await getMatchProofImage(h.matchId)] as const)),
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -60,16 +67,27 @@ export default async function DashboardPage() {
                 <Flame className="size-5 text-primary" />
                 <h2 className="text-lg font-bold tracking-tight text-foreground">Noticias</h2>
               </div>
-              <ul className="space-y-2">
-                {headlines.map((h) => (
-                  <li
-                    key={h.matchId}
-                    className="rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground"
-                  >
-                    {h.text}
-                  </li>
-                ))}
-              </ul>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {headlines.map((h) => {
+                  const photo = photosByMatchId.get(h.matchId);
+                  return (
+                    <article
+                      key={h.matchId}
+                      className="overflow-hidden rounded-xl border border-border bg-surface"
+                    >
+                      <div className="flex aspect-video w-full items-center justify-center bg-surface-elevated">
+                        {photo ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- data URL, no CDN que optimizar
+                          <img src={photo} alt="" className="size-full object-cover" />
+                        ) : (
+                          <Camera className="size-8 text-muted" strokeWidth={1.5} />
+                        )}
+                      </div>
+                      <p className="p-3 text-sm font-medium text-foreground">{h.text}</p>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           )}
         </>
