@@ -258,22 +258,43 @@ export const hasAdminUser = cache(async (): Promise<boolean> => {
 
 /**
  * Plantillas de titular agrupadas por categoría, listas para pasarle a
- * `buildMatchHeadline` (src/lib/headlines.ts). Liviano: solo el texto, sin
- * ids — se usa en cada carga del dashboard.
+ * `buildMatchHeadline` (src/lib/headlines.ts). Incluye el id de cada frase
+ * (a diferencia de antes): así, cuando se elige una frase para un
+ * resultado, se puede buscar su foto afiliada (ver getNewsPhotosByPhrase).
  */
-export const getNewsPhrasePools = cache(async (): Promise<Partial<Record<NewsCategory, string[]>>> => {
-  const rows = await prisma.newsPhrase.findMany({ select: { category: true, template: true } });
-  const pools: Partial<Record<NewsCategory, string[]>> = {};
-  for (const r of rows) {
-    (pools[r.category] ??= []).push(r.template);
-  }
-  return pools;
+export const getNewsPhrasePools = cache(
+  async (): Promise<Partial<Record<NewsCategory, { id: string; template: string }[]>>> => {
+    const rows = await prisma.newsPhrase.findMany({ select: { id: true, category: true, template: true } });
+    const pools: Partial<Record<NewsCategory, { id: string; template: string }[]>> = {};
+    for (const r of rows) {
+      (pools[r.category] ??= []).push({ id: r.id, template: r.template });
+    }
+    return pools;
+  },
+);
+
+/**
+ * Fotos sin afiliar (pool general de reserva): se usan para un resultado
+ * solo cuando la frase elegida no tiene ninguna foto propia (ver
+ * getNewsPhotosByPhrase).
+ */
+export const getNewsPhotoPool = cache(async (): Promise<string[]> => {
+  const rows = await prisma.newsPhoto.findMany({ where: { phraseId: null }, select: { imageData: true } });
+  return rows.map((r) => r.imageData);
 });
 
-/** Fotos subidas por el admin para las tarjetas de noticias (banco general, sin categorizar). */
-export const getNewsPhotoPool = cache(async (): Promise<string[]> => {
-  const rows = await prisma.newsPhoto.findMany({ select: { imageData: true } });
-  return rows.map((r) => r.imageData);
+/** Fotos afiliadas a una frase concreta, agrupadas por id de frase. */
+export const getNewsPhotosByPhrase = cache(async (): Promise<Record<string, string[]>> => {
+  const rows = await prisma.newsPhoto.findMany({
+    where: { phraseId: { not: null } },
+    select: { phraseId: true, imageData: true },
+  });
+  const byPhrase: Record<string, string[]> = {};
+  for (const r of rows) {
+    if (!r.phraseId) continue;
+    (byPhrase[r.phraseId] ??= []).push(r.imageData);
+  }
+  return byPhrase;
 });
 
 /** Listado completo (con id) para el panel de administración de frases. */
@@ -282,8 +303,8 @@ export const getNewsPhrasesForAdmin = cache(async (): Promise<NewsPhrase[]> => {
   return rows.map((r) => ({ id: r.id, category: r.category, template: r.template }));
 });
 
-/** Listado completo (con id e imagen) para el panel de administración de fotos. */
+/** Listado completo (con id, imagen y afiliación) para el panel de administración de fotos. */
 export const getNewsPhotosForAdmin = cache(async (): Promise<NewsPhoto[]> => {
   const rows = await prisma.newsPhoto.findMany({ orderBy: { createdAt: "desc" } });
-  return rows.map((r) => ({ id: r.id, imageData: r.imageData }));
+  return rows.map((r) => ({ id: r.id, imageData: r.imageData, phraseId: r.phraseId ?? undefined }));
 });

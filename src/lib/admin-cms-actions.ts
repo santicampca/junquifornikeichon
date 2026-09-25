@@ -132,17 +132,38 @@ export async function deleteNewsPhraseAction(id: string): Promise<ActionResult> 
 // Banco de fotos para las tarjetas de noticias
 // ============================================================
 
-export async function createNewsPhotoAction(imageDataUrl: string): Promise<ActionResult> {
+export async function createNewsPhotoAction(imageDataUrl: string, phraseId?: string | null): Promise<ActionResult> {
   try {
     await requireAdminSession();
     if (!imageDataUrl.startsWith("data:image/")) return fail("La foto no tiene un formato válido.");
+    if (phraseId) {
+      const phrase = await prisma.newsPhrase.findUnique({ where: { id: phraseId } });
+      if (!phrase) return fail("La frase seleccionada ya no existe.");
+    }
 
-    await prisma.newsPhoto.create({ data: { imageData: imageDataUrl } });
+    await prisma.newsPhoto.create({ data: { imageData: imageDataUrl, phraseId: phraseId || null } });
     revalidatePath("/admin");
     revalidatePath("/");
     return ok;
   } catch (err) {
     return fail(err instanceof Error ? err.message : "No se pudo subir la foto.");
+  }
+}
+
+/** Cambia (o quita, con `phraseId: null`) a qué frase está afiliada una foto ya subida. */
+export async function setNewsPhotoPhraseAction(photoId: string, phraseId: string | null): Promise<ActionResult> {
+  try {
+    await requireAdminSession();
+    if (phraseId) {
+      const phrase = await prisma.newsPhrase.findUnique({ where: { id: phraseId } });
+      if (!phrase) return fail("La frase seleccionada ya no existe.");
+    }
+    await prisma.newsPhoto.update({ where: { id: photoId }, data: { phraseId } });
+    revalidatePath("/admin");
+    revalidatePath("/");
+    return ok;
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "No se pudo afiliar la foto.");
   }
 }
 

@@ -61,29 +61,40 @@ function fillTemplate(template: string, vars: Record<string, string | number>): 
   return template.replace(/\{(\w+)\}/g, (raw, key: string) => (key in vars ? String(vars[key]) : raw));
 }
 
+export interface NewsPhraseEntry {
+  id: string;
+  template: string;
+}
+
 export interface MatchHeadline {
   matchId: string;
   text: string;
+  /** Id de la frase del admin usada (si la hubo); ver getNewsPhotosByPhrase en src/lib/data.ts. */
+  phraseId?: string;
 }
 
 /**
  * Devuelve un titular picante para el resultado, o null si el partido no
  * tiene marcador cerrado. `customPools` (banco de frases del admin, ver
  * getNewsPhrasePools en src/lib/data.ts) reemplaza por completo el pool por
- * defecto de una categoría en cuanto tiene al menos una fila cargada.
+ * defecto de una categoría en cuanto tiene al menos una fila cargada; solo
+ * las frases del admin traen `id`, así la foto afiliada a esa frase concreta
+ * se puede buscar después (las frases por defecto no tienen fotos propias).
  */
 export function buildMatchHeadline(
   match: Match,
   homeTeam?: Team,
   awayTeam?: Team,
-  customPools?: Partial<Record<NewsCategory, string[]>>,
+  customPools?: Partial<Record<NewsCategory, NewsPhraseEntry[]>>,
 ): MatchHeadline | null {
   if (!homeTeam || !awayTeam) return null;
   if (match.status !== "PLAYED" && match.status !== "WALKOVER") return null;
   if (match.homeScore === null || match.awayScore === null) return null;
 
-  const poolFor = (category: NewsCategory) =>
-    customPools?.[category]?.length ? (customPools[category] as string[]) : DEFAULT_POOLS[category];
+  const poolFor = (category: NewsCategory): NewsPhraseEntry[] =>
+    customPools?.[category]?.length
+      ? (customPools[category] as NewsPhraseEntry[])
+      : DEFAULT_POOLS[category].map((template) => ({ id: "", template }));
 
   const home = match.homeScore;
   const away = match.awayScore;
@@ -91,23 +102,32 @@ export function buildMatchHeadline(
 
   if (match.isForfeit && home !== away) {
     const [winner, loser] = home > away ? [homeTeam.name, awayTeam.name] : [awayTeam.name, homeTeam.name];
-    const template = pick(poolFor("FORFEIT"), seed);
-    return { matchId: match.id, text: fillTemplate(template, { W: winner, L: loser }) };
+    const phrase = pick(poolFor("FORFEIT"), seed);
+    return {
+      matchId: match.id,
+      text: fillTemplate(phrase.template, { W: winner, L: loser }),
+      phraseId: phrase.id || undefined,
+    };
   }
 
   if (home === away) {
-    const template = pick(poolFor("DRAW"), seed);
-    return { matchId: match.id, text: fillTemplate(template, { A: homeTeam.name, B: awayTeam.name, S: home }) };
+    const phrase = pick(poolFor("DRAW"), seed);
+    return {
+      matchId: match.id,
+      text: fillTemplate(phrase.template, { A: homeTeam.name, B: awayTeam.name, S: home }),
+      phraseId: phrase.id || undefined,
+    };
   }
 
   const [winner, loser, winnerScore, loserScore] =
     home > away ? [homeTeam.name, awayTeam.name, home, away] : [awayTeam.name, homeTeam.name, away, home];
   const margin = winnerScore - loserScore;
   const category: NewsCategory = margin >= 3 ? "BLOWOUT" : margin === 2 ? "COMFORTABLE" : "NARROW";
-  const template = pick(poolFor(category), seed);
+  const phrase = pick(poolFor(category), seed);
 
   return {
     matchId: match.id,
-    text: fillTemplate(template, { W: winner, L: loser, WS: winnerScore, LS: loserScore }),
+    text: fillTemplate(phrase.template, { W: winner, L: loser, WS: winnerScore, LS: loserScore }),
+    phraseId: phrase.id || undefined,
   };
 }

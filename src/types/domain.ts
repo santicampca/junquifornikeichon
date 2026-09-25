@@ -36,6 +36,8 @@ export interface NewsPhrase {
 export interface NewsPhoto {
   id: string;
   imageData: string;
+  /** Frase a la que está afiliada esta foto; undefined = pool general de reserva. */
+  phraseId?: string;
 }
 
 export type DayOfWeek =
@@ -201,6 +203,14 @@ export const STAGE_TYPE_LABEL: Record<StageType, string> = {
   GENERAL: "Tabla General",
   PLAYOFFS: "Playoffs",
   OTRO: "Otro",
+};
+
+export const NEWS_CATEGORY_LABEL: Record<NewsCategory, string> = {
+  BLOWOUT: "Goleada",
+  COMFORTABLE: "Victoria cómoda",
+  NARROW: "Victoria ajustada",
+  DRAW: "Empate",
+  FORFEIT: "Walkover",
 };
 
 export const DAY_LABEL: Record<DayOfWeek, string> = {

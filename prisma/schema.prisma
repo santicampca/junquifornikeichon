@@ -270,17 +270,28 @@ model NewsPhrase {
   template  String
   createdAt DateTime     @default(now())
 
+  photos NewsPhoto[]
+
   @@index([category])
 }
 
 /// Banco de fotos para las tarjetas de noticias, subidas por el admin
-/// (data URL base64, mismo enfoque que Match.proofImageData). Se elige una
-/// al azar (determinístico por partido) para cada resultado; si el banco
-/// está vacío, la tarjeta cae de nuevo al comprobante real del partido.
+/// (data URL base64, mismo enfoque que Match.proofImageData). Cada foto se
+/// afilia a una frase concreta (`phraseId`): cuando esa frase sale elegida
+/// para un resultado, se usa una de sus fotos afiliadas (al azar,
+/// determinístico por partido) en vez de una foto cualquiera del banco. Una
+/// foto sin afiliar (`phraseId` null) queda en el pool general de reserva,
+/// usado solo si la frase elegida no tiene ninguna foto propia. Si no hay
+/// ninguna foto disponible ni afiliada ni de reserva, la tarjeta cae de
+/// nuevo al comprobante real del partido.
 model NewsPhoto {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
   imageData String
-  createdAt DateTime @default(now())
+  createdAt DateTime    @default(now())
+  phraseId  String?     @db.ObjectId
+  phrase    NewsPhrase? @relation(fields: [phraseId], references: [id], onDelete: SetNull)
+
+  @@index([phraseId])
 }
 
 enum DayOfWeek {

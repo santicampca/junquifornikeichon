@@ -4,21 +4,13 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { createNewsPhraseAction, deleteNewsPhraseAction } from "@/lib/admin-cms-actions";
-import type { NewsCategory, NewsPhrase } from "@/types/domain";
+import { NEWS_CATEGORY_LABEL, type NewsCategory, type NewsPhrase } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
 const inputClass =
   "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-primary";
 
 const CATEGORIES: NewsCategory[] = ["BLOWOUT", "COMFORTABLE", "NARROW", "DRAW", "FORFEIT"];
-
-const CATEGORY_LABEL: Record<NewsCategory, string> = {
-  BLOWOUT: "Goleada",
-  COMFORTABLE: "Victoria cómoda",
-  NARROW: "Victoria ajustada",
-  DRAW: "Empate",
-  FORFEIT: "Walkover",
-};
 
 const CATEGORY_HELP: Record<NewsCategory, string> = {
   BLOWOUT: "Variables: {W} ganador, {L} perdedor, {WS} goles del ganador, {LS} goles del perdedor.",
@@ -70,7 +62,7 @@ export function PhraseManager({ phrases }: { phrases: NewsPhrase[] }) {
         >
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {CATEGORY_LABEL[c]}
+              {NEWS_CATEGORY_LABEL[c]}
             </option>
           ))}
         </select>
@@ -103,7 +95,7 @@ export function PhraseManager({ phrases }: { phrases: NewsPhrase[] }) {
           >
             <div className="min-w-0">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">
-                {CATEGORY_LABEL[p.category]}
+                {NEWS_CATEGORY_LABEL[p.category]}
               </span>
               <p className="text-sm text-foreground">{p.template}</p>
             </div>

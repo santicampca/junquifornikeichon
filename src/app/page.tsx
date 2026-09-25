@@ -6,6 +6,7 @@ import {
   getLastTeamRoster,
   getMatchProofImage,
   getNewsPhotoPool,
+  getNewsPhotosByPhrase,
   getNewsPhrasePools,
 } from "@/lib/data";
 import { buildMatchHeadline, hashString } from "@/lib/headlines";
@@ -30,13 +31,20 @@ export default async function DashboardPage() {
     .filter((h): h is NonNullable<typeof h> => h !== null)
     .slice(0, 6);
 
-  // La foto de cada noticia sale al azar (determinístico por partido) del
-  // banco que sube el admin en /admin; si el banco está vacío, cae de
-  // nuevo al comprobante real que subió el equipo al cerrar el partido.
-  const newsPhotoPool = await getNewsPhotoPool();
+  // La foto de cada noticia sale primero de las fotos afiliadas a la frase
+  // elegida (subidas en /admin apuntando a esa frase concreta); si esa
+  // frase no tiene ninguna, cae al pool general sin afiliar; si tampoco hay
+  // nada ahí, cae de nuevo al comprobante real que subió el equipo al
+  // cerrar el partido. La elección dentro de cada pool es al azar pero
+  // determinística por partido.
+  const [newsPhotoPool, photosByPhrase] = await Promise.all([getNewsPhotoPool(), getNewsPhotosByPhrase()]);
   const photosByMatchId = new Map(
     await Promise.all(
       headlines.map(async (h) => {
+        const affiliated = h.phraseId ? photosByPhrase[h.phraseId] : undefined;
+        if (affiliated && affiliated.length > 0) {
+          return [h.matchId, affiliated[hashString(h.matchId) % affiliated.length]] as const;
+        }
         if (newsPhotoPool.length > 0) {
           return [h.matchId, newsPhotoPool[hashString(h.matchId) % newsPhotoPool.length]] as const;
         }

@@ -50,7 +50,7 @@ export default async function AdminPage() {
             <div className="space-y-4">
               <AccountPanel username={session.username} />
               <PhraseManager phrases={phrases} />
-              <PhotoManager photos={photos} />
+              <PhotoManager photos={photos} phrases={phrases} />
             </div>
           )}
         </>
