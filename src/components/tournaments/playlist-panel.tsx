@@ -10,7 +10,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { PlaylistTrack } from "@/types/domain";
 import { cn } from "@/lib/utils";
 
-const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+// Vercel limita el tamaño de un request de Server Action a ~4.5MB (Hobby,
+// no configurable) y el archivo se manda como base64 (~33% más pesado que
+// el original). 3MB de mp3 alcanzan para 2-3 minutos a un bitrate bajo
+// (~128kbps); un tema entero en alta calidad probablemente no entre.
+const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 
 export function PlaylistPanel({ tracks }: { tracks: PlaylistTrack[] }) {
   const router = useRouter();
@@ -29,7 +33,7 @@ export function PlaylistPanel({ tracks }: { tracks: PlaylistTrack[] }) {
       return;
     }
     if (file.size > MAX_AUDIO_BYTES) {
-      setError("El archivo es demasiado pesado (máx. ~15MB); probá un mp3 más liviano.");
+      setError("El archivo es demasiado pesado (máx. ~3MB, unos 2-3 minutos en baja calidad); probá un mp3 más corto o más comprimido.");
       return;
     }
 
@@ -61,6 +65,10 @@ export function PlaylistPanel({ tracks }: { tracks: PlaylistTrack[] }) {
     <div className="space-y-4">
       {isAdmin && adminName && (
         <div className="space-y-2 rounded-xl border border-border bg-surface p-4">
+          <p className="text-xs text-muted">
+            Máximo ~3MB por canción (limitación del hosting gratuito): un mp3 corto o comprimido en baja calidad,
+            no el tema entero en alta calidad.
+          </p>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
