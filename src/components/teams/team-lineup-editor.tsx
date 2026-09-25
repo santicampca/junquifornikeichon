@@ -154,7 +154,7 @@ function PasivoPanel({
 
       {!canEdit ? (
         initialFormation ? (
-          <div className="relative mx-auto aspect-[3/4] w-40 overflow-hidden rounded-lg bg-green-800/70">
+          <div className="relative mx-auto aspect-[3/4] w-40 overflow-visible rounded-lg bg-green-800/70">
             {PASSIVE_FORMATION_SLOTS[initialFormation].map((slot, i) => (
               <PitchDot
                 key={i}
@@ -195,7 +195,7 @@ function PasivoPanel({
 
           {formation && (
             <>
-              <div className="relative mx-auto mb-3 aspect-[3/4] w-40 overflow-hidden rounded-lg bg-green-800/70">
+              <div className="relative mx-auto mb-5 aspect-[3/4] w-40 overflow-visible rounded-lg bg-green-800/70">
                 {PASSIVE_FORMATION_SLOTS[formation].map((slot, i) => (
                   <PitchDot
                     key={i}
@@ -318,7 +318,7 @@ function ActivoPanel({
 
       {!canEdit ? (
         initialFormation ? (
-          <div className="relative mx-auto aspect-[3/4] w-40 overflow-hidden rounded-lg bg-green-800/70">
+          <div className="relative mx-auto aspect-[3/4] w-40 overflow-visible rounded-lg bg-green-800/70">
             {FORMATION_SLOTS[initialFormation].map((slot, i) => (
               <PitchDot
                 key={i}
@@ -359,7 +359,7 @@ function ActivoPanel({
 
           {formation && (
             <>
-              <div className="relative mx-auto mb-3 aspect-[3/4] w-40 overflow-hidden rounded-lg bg-green-800/70">
+              <div className="relative mx-auto mb-5 aspect-[3/4] w-40 overflow-visible rounded-lg bg-green-800/70">
                 {FORMATION_SLOTS[formation].map((slot, i) => (
                   <PitchDot
                     key={i}

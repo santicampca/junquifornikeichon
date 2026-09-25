@@ -185,19 +185,19 @@ export type ActiveFormation = (typeof ACTIVE_FORMATIONS)[number];
 
 export const FORMATION_SLOTS: Record<ActiveFormation, { x: number; y: number }[]> = {
   "1-3": [
-    { x: 50, y: 82 },
+    { x: 50, y: 78 },
     { x: 22, y: 38 },
     { x: 50, y: 28 },
     { x: 78, y: 38 },
   ],
   "1-2-1": [
-    { x: 50, y: 82 },
+    { x: 50, y: 78 },
     { x: 30, y: 52 },
     { x: 70, y: 52 },
     { x: 50, y: 24 },
   ],
   "1-1-2": [
-    { x: 50, y: 82 },
+    { x: 50, y: 78 },
     { x: 50, y: 55 },
     { x: 30, y: 26 },
     { x: 70, y: 26 },
@@ -228,7 +228,7 @@ export type PassiveFormation = (typeof PASSIVE_FORMATIONS)[number];
 
 export const PASSIVE_FORMATION_SLOTS: Record<PassiveFormation, { x: number; y: number }[]> = {
   "1-3-2": [
-    { x: 50, y: 94 },
+    { x: 50, y: 88 },
     { x: 20, y: 70 },
     { x: 50, y: 72 },
     { x: 80, y: 70 },
@@ -236,7 +236,7 @@ export const PASSIVE_FORMATION_SLOTS: Record<PassiveFormation, { x: number; y: n
     { x: 65, y: 30 },
   ],
   "1-2-3": [
-    { x: 50, y: 94 },
+    { x: 50, y: 88 },
     { x: 30, y: 70 },
     { x: 70, y: 70 },
     { x: 20, y: 30 },
@@ -244,7 +244,7 @@ export const PASSIVE_FORMATION_SLOTS: Record<PassiveFormation, { x: number; y: n
     { x: 80, y: 30 },
   ],
   "1-4-1": [
-    { x: 50, y: 94 },
+    { x: 50, y: 88 },
     { x: 15, y: 68 },
     { x: 38, y: 70 },
     { x: 62, y: 70 },
@@ -252,7 +252,7 @@ export const PASSIVE_FORMATION_SLOTS: Record<PassiveFormation, { x: number; y: n
     { x: 50, y: 26 },
   ],
   "1-2-1-2": [
-    { x: 50, y: 94 },
+    { x: 50, y: 88 },
     { x: 30, y: 72 },
     { x: 70, y: 72 },
     { x: 50, y: 50 },
