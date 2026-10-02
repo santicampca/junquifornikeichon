@@ -250,7 +250,6 @@ export function MatchLivePanel({
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleProofChange}
             disabled={submitting !== null}
             className="hidden"
